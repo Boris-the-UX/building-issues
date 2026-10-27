@@ -22,3 +22,11 @@ The original task was a secure foundation only. Later user instructions explicit
 Management dashboard/mutation workflows, automatic unconfirmed merging, incident status synchronization through management updates, alert generation, notifications, product email, legacy-ticket UX, building invitations and external management-system integration remain outside the authorized scope.
 
 Hosted deployment, real SMTP, native model cold-start measurements, media retention cleanup, production quotas and rate limits remain operational configuration and verification work. The presence of a table does not authorize a deferred workflow.
+
+### Description-first submission
+
+The resident begins with one private description and optional media. Phone keyboard dictation can populate the same field; the app does not record or transcribe audio. A conservative local English/Russian rule parser suggests the category, request kind, floor/object and an exact known place when unambiguous. It does not call an LLM or infer an observation date. Missing/ambiguous places and unknown categories require resident clarification. The home tower is shown as a selectable suggestion, never silently used to resolve an unspecified tower.
+
+Before saving, the resident reviews a public title assembled only from controlled category/place labels and recognized numeric floor/object details, keeping their private narrative out of the public title. All fields remain editable. Existing server validation, membership/RLS, private media upload, semantic matching and explicit grouping confirmation continue unchanged. This change does not add community status voting or statistics charts.
+
+Check draft extraction with `node scripts/test-draft.mjs`; the mobile browser suite covers the new first step and the full media/grouping submission flow.

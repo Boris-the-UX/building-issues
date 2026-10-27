@@ -43,6 +43,9 @@ try{
  await login(page,emails[0]);
  sql(`insert into public.resident_memberships(user_id,building_id,unit_id) select p.id,u.building_id,u.id from public.profiles p cross join public.units u where p.email='${emails[0]}' and u.building_id='10000000-0000-4000-8000-000000000001' and u.unit_number='3C';`);
  await page.goto(origin+'/app/issues/new');
+ check(await page.locator('select:visible').count()===0,'first step has one description field and no classification selects');
+ await page.getByLabel('What happened and where?').fill(privateText);
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
  check(await page.getByLabel('Where is the issue?').inputValue()==='10000000-0000-4000-8000-000000000001','mobile form defaults to the resident’s Tower 2');
  await page.getByLabel('Where is the issue?').selectOption('shared');
  const options=await page.locator('#location_id').innerText();
@@ -56,8 +59,8 @@ try{
  await page.getByLabel('Type of request').selectOption('missing_service');
  await page.getByLabel('Problem category').selectOption('cleaning');
  await page.getByLabel('Specific object, floor or landmark').fill('Near the main entrance');
- await page.getByLabel('Shared issue title').fill(sharedTitle);
- await page.getByLabel('Your private report details').fill(privateText);
+ await page.getByLabel('Public issue title').fill(sharedTitle);
+
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5r0AAAAASUVORK5CYII=','base64');
  await page.locator('#media').setInputFiles({name:'evidence.png',mimeType:'image/png',buffer:png});
  check(await page.getByRole('img',{name:'evidence.png'}).isVisible(),'selected photo has a mobile preview');
@@ -73,7 +76,7 @@ try{
  check(await page.locator('video').count()===1,'selected real WebM video has a preview control');
  check(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'form has no horizontal overflow at 390px');
  await page.screenshot({path:'/tmp/building-issues-mobile-form.png',fullPage:true});
- await page.getByRole('button',{name:'Submit report',exact:true}).click();
+ await page.getByRole('button',{name:'Send report',exact:true}).click();
  await page.waitForURL('**/app/reports/**');
  check(await page.getByRole('link',{name:'evidence.png',exact:true}).isVisible(),'actual photo upload is attached to the submitted report');
  check(await page.getByRole('link',{name:'gate.webm',exact:true}).isVisible(),'actual video upload is attached to the submitted report');
@@ -93,19 +96,21 @@ try{
  const denied=await secondContext.request.get(origin+'/api/attachments/'+attachmentId,{maxRedirects:0});
  check(denied.status()===404,'neighbor cannot access the private attachment by ID');
  await second.goto(origin+'/app/issues/new');
+ await second.getByLabel('What happened and where?').fill('There is no shared place to dispose of household rubbish. We need a common collection point.');
+ await second.getByRole('button',{name:'Continue',exact:true}).click();
  await second.getByLabel('Where is the issue?').selectOption('shared');await second.getByLabel('Place / facility').selectOption(place);
  await second.getByLabel('Type of request').selectOption('missing_service');await second.getByLabel('Problem category').selectOption('cleaning');
  await second.getByLabel('Specific object, floor or landmark').fill('Near the main entrance');
- await second.getByLabel('Shared issue title').fill(sharedTitle.replace('Missing communal waste point','No place for communal rubbish bins'));
- await second.getByLabel('Your private report details').fill('There is no shared place to dispose of household rubbish. We need a common collection point.');
+ await second.getByLabel('Public issue title').fill(sharedTitle.replace('Missing communal waste point','No place for communal rubbish bins'));
+
  await second.locator('#media').setInputFiles({name:'neighbor-evidence.png',mimeType:'image/png',buffer:png});
- await second.getByRole('button',{name:'Submit report',exact:true}).click();
+ await second.getByRole('button',{name:'Send report',exact:true}).click();
  await second.getByText('Similar issues were found.',{exact:false}).waitFor();
  check(await second.locator('input[name="grouping_choice"]').count()>=2,'real semantic paraphrase offers an existing issue plus a separate-problem choice');
  console.log('Selecting the proposed group in the mobile form…');
  await second.locator('input[name="grouping_choice"]').first().check();
  console.log('Confirming the proposed group…');
- await second.getByRole('button',{name:'Confirm and submit'}).click();await second.waitForURL('**/app/reports/**',{timeout:20000}).catch(async(error)=>{await second.screenshot({path:'/tmp/building-issues-grouping-error.png',fullPage:true});console.error('Submission page diagnostic:',(await second.locator('body').innerText()).slice(0,2000));throw error;});
+ await second.getByRole('button',{name:'Confirm and send'}).click();await second.waitForURL('**/app/reports/**',{timeout:20000}).catch(async(error)=>{await second.screenshot({path:'/tmp/building-issues-grouping-error.png',fullPage:true});console.error('Submission page diagnostic:',(await second.locator('body').innerText()).slice(0,2000));throw error;});
  check(await second.getByRole('link',{name:'neighbor-evidence.png',exact:true}).isVisible(),'staged attachment survives the semantic confirmation step');
  check(sql(`select count(r.id) from public.incidents i join public.reports r on r.incident_id=i.id where i.title='${sharedTitle}';`).trim()==='2','confirmation groups two residents’ reports into one incident');
  await second.goto(origin+'/app/statistics');check(await second.getByRole('heading',{name:'Complex statistics'}).isVisible(),'statistics page renders for either tower');

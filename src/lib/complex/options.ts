@@ -14,9 +14,9 @@ export const categories = [
   { value: 'other', label: 'Other' },
 ] as const;
 export const requestKinds = [
-  { value: 'fault', label: 'Something is broken / not working' },
+  { value: 'fault', label: 'Report a problem' },
   { value: 'missing_service', label: 'Missing or unavailable facility / service' },
-  { value: 'change_request', label: 'Request a change' },
+  { value: 'change_request', label: 'Suggest an improvement' },
 ] as const;
 export const statusLabels = {
   reported: 'Reported', acknowledged: 'Acknowledged', in_progress: 'In progress',
