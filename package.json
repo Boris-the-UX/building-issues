@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.0.0"
   },
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0",
@@ -11,16 +11,22 @@
     "start": "next start --hostname 0.0.0.0",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "db:start": "supabase start -x realtime,storage-api,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
+    "db:start": "supabase start -x realtime,imgproxy,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:types": "node scripts/generate-types.mjs",
     "env:local": "node scripts/configure-local.mjs",
-    "test:smoke": "node scripts/smoke-local.mjs"
+    "test:smoke": "node scripts/smoke-local.mjs",
+    "model:prepare": "node --conditions=react-server scripts/prepare-model.mjs",
+    "test:semantic": "node --conditions=react-server scripts/test-semantic.mjs",
+    "test:browser": "node scripts/browser-smoke.mjs",
+    "test:migrations": "node scripts/test-migrations.mjs"
   },
   "dependencies": {
+    "@huggingface/transformers": "4.3.1",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.118.0",
+    "file-type": "22.2.0",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
@@ -34,5 +40,6 @@
     "eslint-config-next": "16.4.3",
     "supabase": "2.122.0",
     "typescript": "6.0.3"
-  }
+  },
+  "type": "module"
 }

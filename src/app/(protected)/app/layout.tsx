@@ -8,7 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (authError || !user) redirect('/login');
   // Buildings are filtered by RLS for residents, assigned management, and admins.
   const { data: buildings, error } = await supabase.from('buildings').select('id, name').order('name');
-  return <><header><Link href="/app">Building Issues</Link><nav aria-label="Main navigation"><Link href="/app/issues">Issues</Link></nav>
+  return <><header><Link href="/app">Building Issues</Link><nav aria-label="Main navigation"><Link href="/app/issues">Issues</Link><Link href="/app/statistics">Statistics</Link></nav>
     <form action={logout}><button type="submit">Sign out</button></form></header>
     <main><section aria-label="Your buildings">
       {error ? <p role="alert" className="error">Unable to load your buildings. Please try again later.</p>

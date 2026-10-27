@@ -48,6 +48,7 @@ export type Database = {
             "buildings": {
                 Row: {
                     "address": string;
+                    "complex_id": string;
                     "created_at": string;
                     "id": string;
                     "management_company": string | null;
@@ -58,6 +59,7 @@ export type Database = {
                 ComputedFields: never;
                 Insert: {
                     "address": string;
+                    "complex_id": string;
                     "created_at"?: string;
                     "id"?: string;
                     "management_company"?: string | null;
@@ -67,12 +69,47 @@ export type Database = {
                 };
                 Update: {
                     "address"?: string;
+                    "complex_id"?: string;
                     "created_at"?: string;
                     "id"?: string;
                     "management_company"?: string | null;
                     "name"?: string;
                     "timezone"?: string;
                     "updated_at"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "buildings_complex_id_fkey";
+                        columns: [
+                            "complex_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "complexes";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
+            "complexes": {
+                Row: {
+                    "created_at": string;
+                    "id": string;
+                    "name": string;
+                    "timezone": string;
+                };
+                ComputedFields: never;
+                Insert: {
+                    "created_at"?: string;
+                    "id"?: string;
+                    "name": string;
+                    "timezone"?: string;
+                };
+                Update: {
+                    "created_at"?: string;
+                    "id"?: string;
+                    "name"?: string;
+                    "timezone"?: string;
                 };
                 Relationships: [
                 ];
@@ -124,8 +161,10 @@ export type Database = {
             };
             "incidents": {
                 Row: {
-                    "building_id": string;
+                    "building_id": string | null;
                     "category": string | null;
+                    "category_detail": string | null;
+                    "complex_id": string;
                     "created_at": string;
                     "created_by": string | null;
                     "description": string;
@@ -135,6 +174,8 @@ export type Database = {
                     "last_management_update_at": string | null;
                     "last_report_at": string;
                     "location": string | null;
+                    "location_id": string;
+                    "request_kind": string;
                     "resolved_at": string | null;
                     "status": Database["public"]['Enums']["incident_status"];
                     "title": string;
@@ -142,8 +183,10 @@ export type Database = {
                 };
                 ComputedFields: never;
                 Insert: {
-                    "building_id": string;
+                    "building_id"?: string | null;
                     "category"?: string | null;
+                    "category_detail"?: string | null;
+                    "complex_id": string;
                     "created_at"?: string;
                     "created_by"?: string | null;
                     "description"?: string;
@@ -153,14 +196,18 @@ export type Database = {
                     "last_management_update_at"?: string | null;
                     "last_report_at"?: string;
                     "location"?: string | null;
+                    "location_id": string;
+                    "request_kind"?: string;
                     "resolved_at"?: string | null;
                     "status"?: Database["public"]['Enums']["incident_status"];
                     "title": string;
                     "updated_at"?: string;
                 };
                 Update: {
-                    "building_id"?: string;
+                    "building_id"?: string | null;
                     "category"?: string | null;
+                    "category_detail"?: string | null;
+                    "complex_id"?: string;
                     "created_at"?: string;
                     "created_by"?: string | null;
                     "description"?: string;
@@ -170,6 +217,8 @@ export type Database = {
                     "last_management_update_at"?: string | null;
                     "last_report_at"?: string;
                     "location"?: string | null;
+                    "location_id"?: string;
+                    "request_kind"?: string;
                     "resolved_at"?: string | null;
                     "status"?: Database["public"]['Enums']["incident_status"];
                     "title"?: string;
@@ -188,12 +237,87 @@ export type Database = {
                         ];
                     },
                     {
+                        foreignKeyName: "incidents_complex_id_fkey";
+                        columns: [
+                            "complex_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "complexes";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "incidents_complex_id_location_id_fkey";
+                        columns: [
+                            "complex_id",
+                            "location_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "issue_locations";
+                        referencedColumns: [
+                            "complex_id",
+                            "id"
+                        ];
+                    },
+                    {
                         foreignKeyName: "incidents_created_by_fkey";
                         columns: [
                             "created_by"
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
+            "issue_locations": {
+                Row: {
+                    "building_id": string | null;
+                    "code": string;
+                    "complex_id": string;
+                    "created_at": string;
+                    "id": string;
+                    "name": string;
+                };
+                ComputedFields: never;
+                Insert: {
+                    "building_id"?: string | null;
+                    "code": string;
+                    "complex_id": string;
+                    "created_at"?: string;
+                    "id"?: string;
+                    "name": string;
+                };
+                Update: {
+                    "building_id"?: string | null;
+                    "code"?: string;
+                    "complex_id"?: string;
+                    "created_at"?: string;
+                    "id"?: string;
+                    "name"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "issue_locations_building_id_fkey";
+                        columns: [
+                            "building_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "buildings";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "issue_locations_complex_id_fkey";
+                        columns: [
+                            "complex_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "complexes";
                         referencedColumns: [
                             "id"
                         ];
@@ -397,6 +521,139 @@ export type Database = {
                 Relationships: [
                 ];
             };
+            "report_attachments": {
+                Row: {
+                    "batch_id": string;
+                    "byte_size": number;
+                    "created_at": string;
+                    "filename": string;
+                    "id": string;
+                    "mime_type": string;
+                    "path": string;
+                    "report_id": string | null;
+                    "user_id": string;
+                };
+                ComputedFields: never;
+                Insert: {
+                    "batch_id": string;
+                    "byte_size": number;
+                    "created_at"?: string;
+                    "filename": string;
+                    "id"?: string;
+                    "mime_type": string;
+                    "path": string;
+                    "report_id"?: string | null;
+                    "user_id": string;
+                };
+                Update: {
+                    "batch_id"?: string;
+                    "byte_size"?: number;
+                    "created_at"?: string;
+                    "filename"?: string;
+                    "id"?: string;
+                    "mime_type"?: string;
+                    "path"?: string;
+                    "report_id"?: string | null;
+                    "user_id"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "report_attachments_batch_id_fkey";
+                        columns: [
+                            "batch_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "report_upload_batches";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "report_attachments_report_id_fkey";
+                        columns: [
+                            "report_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "reports";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "report_attachments_user_id_fkey";
+                        columns: [
+                            "user_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
+            "report_upload_batches": {
+                Row: {
+                    "complex_id": string;
+                    "created_at": string;
+                    "expires_at": string;
+                    "id": string;
+                    "report_id": string | null;
+                    "user_id": string;
+                };
+                ComputedFields: never;
+                Insert: {
+                    "complex_id": string;
+                    "created_at"?: string;
+                    "expires_at"?: string;
+                    "id": string;
+                    "report_id"?: string | null;
+                    "user_id": string;
+                };
+                Update: {
+                    "complex_id"?: string;
+                    "created_at"?: string;
+                    "expires_at"?: string;
+                    "id"?: string;
+                    "report_id"?: string | null;
+                    "user_id"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "report_upload_batches_complex_id_fkey";
+                        columns: [
+                            "complex_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "complexes";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "report_upload_batches_report_id_fkey";
+                        columns: [
+                            "report_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "reports";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "report_upload_batches_user_id_fkey";
+                        columns: [
+                            "user_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
             "reports": {
                 Row: {
                     "created_at": string;
@@ -405,7 +662,9 @@ export type Database = {
                     "location": string | null;
                     "resident_id": string;
                     "source": Database["public"]['Enums']["report_source"];
+                    "submission_id": string | null;
                     "text": string;
+                    "unit_id": string | null;
                     "updated_at": string;
                 };
                 ComputedFields: never;
@@ -416,7 +675,9 @@ export type Database = {
                     "location"?: string | null;
                     "resident_id": string;
                     "source"?: Database["public"]['Enums']["report_source"];
+                    "submission_id"?: string | null;
                     "text": string;
+                    "unit_id"?: string | null;
                     "updated_at"?: string;
                 };
                 Update: {
@@ -426,7 +687,9 @@ export type Database = {
                     "location"?: string | null;
                     "resident_id"?: string;
                     "source"?: Database["public"]['Enums']["report_source"];
+                    "submission_id"?: string | null;
                     "text"?: string;
+                    "unit_id"?: string | null;
                     "updated_at"?: string;
                 };
                 Relationships: [
@@ -448,6 +711,17 @@ export type Database = {
                         ];
                         isOneToOne: false;
                         referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "reports_unit_id_fkey";
+                        columns: [
+                            "unit_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "units";
                         referencedColumns: [
                             "id"
                         ];
@@ -605,6 +879,71 @@ export type Database = {
             [_ in never]: never;
         };
         Functions: {
+            "cancel_report_attachment": {
+                Args: {
+                    "p_id": string;
+                };
+                Returns: undefined;
+            };
+            "find_similar_incidents": {
+                Args: {
+                    "p_category": string;
+                    "p_category_detail"?: string;
+                    "p_embedding": string;
+                    "p_location": string;
+                    "p_location_detail": string;
+                    "p_request_kind": string;
+                    "p_title": string;
+                };
+                Returns: {
+                    "id": string;
+                    "report_count": number;
+                    "status": Database["public"]['Enums']["incident_status"];
+                    "title": string;
+                }[];
+            };
+            "get_complex_statistics": {
+                Args: {
+                    "p_complex": string;
+                };
+                Returns: Json;
+            };
+            "list_complex_incidents": {
+                Args: {
+                    "p_complex": string;
+                };
+                Returns: {
+                    "building_name": string;
+                    "category": string;
+                    "category_detail": string;
+                    "created_at": string;
+                    "id": string;
+                    "location_detail": string;
+                    "location_name": string;
+                    "report_count": number;
+                    "reporting_households": number;
+                    "request_kind": string;
+                    "status": Database["public"]['Enums']["incident_status"];
+                    "title": string;
+                    "unknown_household_reports": number;
+                }[];
+            };
+            "reserve_report_attachment": {
+                Args: {
+                    "p_batch": string;
+                    "p_bytes": number;
+                    "p_filename": string;
+                    "p_location": string;
+                    "p_mime": string;
+                };
+                Returns: Json;
+            };
+            "submit_complex_report": {
+                Args: {
+                    "p_data": Json;
+                };
+                Returns: Json;
+            };
             "submit_resident_report": {
                 Args: {
                     "p_category"?: string;

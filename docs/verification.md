@@ -44,3 +44,23 @@ No AI, report matching, alert generation, notification delivery, image upload, m
 - Hosted migration/deployment and production email delivery remain unverified. Apply the new migration with authorized Supabase tooling before deploying the app.
 
 The earlier foundation-only scope above describes the preceding phase. Resident incident creation UX is now implemented; AI, matching, alerts and notifications remain absent.
+
+## Complex, media and semantic extension — 2026-10-27
+
+This supersedes the preceding phase's statements that matching, statistics and uploads were absent.
+
+- All five migrations applied to a clean PostgreSQL 17 database with minimal Auth/Storage schema harnesses. Repeated seed application produced no duplicates. Regression suites ran against the actual local Supabase stack as well.
+- Original suites passed: 43 RLS checks plus 28 resident-submission checks. The complex/media suite passed 47 assertions (118 database assertions total) and adds isolation across complexes, shared visibility across towers, management scope, semantic scope gates, grouping confirmation, idempotency, aggregate privacy, household counts, upload type/size/count limits, closed incidents and file revocation.
+- The real pinned multilingual E5 model produced 384-dimensional normalized embeddings. Cosine scores on synthetic examples were 0.943 for elevator paraphrases, 0.901 for Russian/English descriptions, 0.932 for missing-waste-point paraphrases, and 0.827 for an unrelated facility. The conservative 0.89 threshold excludes the unrelated example. These examples validate integration, not overall model accuracy; grouping requires human confirmation and exact scope checks.
+- Model weights matched the pinned repository's LFS SHA-256 `f80102d3f2a1229f387d3c81909990d8945513e347b0eab049f7de3c6f98c193`. No report text was sent to a remote AI provider.
+- Extended real local HTTP/Auth suite passed 33 checks, including proposals from actual inference, confirmed grouping, idempotent retry, private receipts, aggregate statistics and revocation.
+- A real Chromium browser at 390×844 passed 21 mobile checks. These included dynamic location/category controls, Other/gas guidance, photo preview/removal, real PNG and recorded WebM uploads, exact authorized file bytes, neighbor and logged-out download denial, semantic paraphrase confirmation with a staged photo, and statistics. There was no horizontal overflow. Synthetic users, reports and physical Storage files were removed afterward.
+- An early browser test exposed the need to keep an upload batch ID stable across Server Action re-renders; this was fixed and the complete confirmation-with-media scenario passed.
+- Browser dependencies were installed outside the repository. CDN browser download was blocked; an npm integrity-verified packaged headless Chromium was used instead. The application dependency tree does not include Playwright/Chromium.
+- Lint, strict TypeScript, production build and a production dependency audit passed; the audit reported zero advisories at verification time.
+
+Not verified: hosted Vercel deployment, plan-specific native bundle/cold-start limits, real SMTP or production-scale matching accuracy. Automatic abandoned-object cleanup, malware scanning, EXIF removal and transcoding are not implemented; files stay private and a production retention/quota strategy is required.
+
+The final migration harness also upgraded a populated foundation database and confirmed that the original building ID, active Tower 2/3C membership, private report and legacy recollection survived, with two towers and no duplicate 3C unit.
+
+Normal inference was additionally tested with both library and global fetch disabled. Model components load from their verified local directory, avoiding an upstream metadata probe that ignored offline/revision options. A fresh-cache artifact download and offline inference test exercise the first-install path separately.

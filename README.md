@@ -1,21 +1,21 @@
 # Building Issues
 
-Building Issues is a mobile-first application for residential buildings. It will group individual resident reports about the same shared problem into a single incident: **one issue → one incident → one status → one communication thread**. This repository implements the technical foundation, private data layer, and a minimal resident report submission flow.
+Building Issues is a mobile-first application for residential buildings. It will group individual resident reports about the same shared problem into a single incident: **one issue → one incident → one status → one communication thread**. This repository implements the private reporting, meaning-based incident grouping, and shared residential-complex statistics.
 
 ## Stack
 
-- Next.js 16 App Router, React 19, strict TypeScript; Node.js 22.13+ (Node 24 LTS recommended), npm and committed `package-lock.json`.
-- Supabase PostgreSQL 17, Auth, SSR cookie sessions, and RLS. No service-role key in the application.
+- Next.js 16 App Router, React 19, strict TypeScript; Node.js 24 LTS or newer, npm and committed `package-lock.json`.
+- Supabase PostgreSQL 17, Auth, SSR cookie sessions, and RLS. No service-role key in the application. Private Supabase Storage stores media; a pinned local multilingual model computes semantic embeddings.
 - Plain CSS, English UI, semantic HTML, responsive layouts. Root `lang` and centralized route copy can be replaced by a locale dictionary later. No translation framework yet.
 - Vercel-compatible Node runtime. No long-lived application services or custom server.
 
-Use `npm ci` to reproduce the pinned dependency tree. ESLint 9 is intentionally retained because plugins in the current Next.js lint configuration do not yet declare compatibility with ESLint 10. TypeScript 6.0 is the newest stable line supported by the current TypeScript ESLint parser (`<6.1`); TypeScript 7 is not yet compatible with that lint toolchain. Do not bypass peer checks with `--force` or `--legacy-peer-deps`.
+Use `ONNXRUNTIME_NODE_INSTALL=skip npm ci` to reproduce the pinned dependency tree with the bundled CPU runtime. The flag skips optional CUDA downloads; package integrity, TLS and model checksum verification remain enabled. ESLint 9 is intentionally retained because plugins in the current Next.js lint configuration do not yet declare compatibility with ESLint 10. TypeScript 6.0 is the newest stable line supported by the current TypeScript ESLint parser (`<6.1`); TypeScript 7 is not yet compatible with that lint toolchain. Do not bypass peer checks with `--force` or `--legacy-peer-deps`.
 
 ## Local setup
 
 ```sh
-npm ci
-npm run db:start                 # requires Docker; starts only DB, Auth, REST, gateway, local mail
+ONNXRUNTIME_NODE_INSTALL=skip npm ci
+npm run db:start                 # requires Docker; starts DB, Auth, REST, Storage, gateway and local mail
 ```
 
 The Supabase CLI is a pinned dev dependency. On hosts with a read-only home directory, prefix Supabase commands with `SUPABASE_HOME=/tmp/building-issues-supabase` (including commands invoked through npm). Do not change `HOME`. The email template must be world-readable (`chmod 644 supabase/templates/magic_link.html`) so the local gateway can serve it to Auth. This cloud host also uses `SUPABASE_USE_SLIM_IMAGES=true` with Supabase commands to use the official digest-verified smaller images; keep the same setting when starting/resetting that stack. Its default Docker client config injects an external proxy into local containers; for this stack only, create an empty `/tmp/building-issues-docker-local/config.json` and run startup with `DOCKER_CONFIG=/tmp/building-issues-docker-local`. This leaves global Docker settings unchanged and lets local services communicate directly. Outbound image downloads keep the daemon’s existing networking.
@@ -23,6 +23,7 @@ The Supabase CLI is a pinned dev dependency. On hosts with a read-only home dire
 Create `.env.local` from `.env.example` and enter the **local** API URL and publishable key from `npx supabase status`. If the CLI only supplies an `anon` key for the local stack, that browser-safe key also works in the publishable-key variable. Never use the secret/service-role key there. The cloud workflow may use `npm run env:local` to create this file without printing keys or overwriting an existing file.
 
 ```sh
+npm run model:prepare           # first run downloads ~120 MB of pinned model data
 npm run dev
 ```
 
@@ -45,7 +46,7 @@ For a hosted Supabase project:
 
    The callback verifies `TokenHash` with Supabase and sets SSR cookies. Default fragment-based email links are incompatible with this server callback. No arbitrary `next` URL is accepted. Tokens must not be logged or shared.
 5. Configure production SMTP, sender identity, Auth rate limits, and anti-abuse settings before opening public signup. Supabase's default email service has delivery/recipient limits. Product email and notification features are not implemented; Auth's sign-in email is the only email flow.
-6. Expose only the intended `public` API schema (keep `private` unexposed). Apply migrations before allowing logins. No Storage buckets or upload policies are created yet.
+6. Expose only the intended `public` API schema (keep `private` unexposed). Apply migrations before allowing logins. The migrations create a private `report-media` bucket and owner/management/admin policies. Keep the bucket private; no public media URLs are used.
 
 ## Environment variables
 
@@ -53,6 +54,7 @@ For a hosted Supabase project:
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project Settings → API | API/Auth URL, also used by server client |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same page → publishable API key | Browser-safe API access subject to RLS |
+| `MODEL_CACHE_DIR` (optional, server only) | Your filesystem configuration | Writable semantic-model cache; defaults to an OS temporary directory |
 
 `.env.example` contains placeholders only. `.env.local` is ignored. Never put a database password, Auth token, secret key, or service-role key into a `NEXT_PUBLIC_` variable. No application service-role variable is needed. CI/deployment migration credentials belong in a separate secure administrative workflow.
 
@@ -82,13 +84,13 @@ npx supabase link --project-ref YOUR_PROJECT_REF
 npx supabase db push         # review pending migrations; no automatic production seed
 ```
 
-The same migration can be applied with an authorized SQL client. Do not run local database reset commands against production. Do not modify an already deployed migration: add another versioned migration.
+All migrations can also be applied with an authorized SQL client. Do not run local database reset commands against production. Do not modify an already deployed migration: add another versioned migration.
 
 Database types are generated from the migrated local database and checked into `src/lib/supabase/database.types.ts`. After future schema changes, run `npm run db:types` with the local stack running, then typecheck and review the generated diff.
 
 ## Seed data
 
-`supabase/seed.sql` contains only L Tower, fictional address/management company, timezone `Europe/Lisbon`, units 101/102/201/202, and three example incidents. It is idempotent and creates no users, passwords, reports, or memberships. Business logic defaults buildings to UTC; the pilot timezone is data, validated against PostgreSQL's timezone catalog.
+`supabase/seed.sql` contains the L Tower complex, Tower 1 / Tower 2, fictional address/management company, timezone `Europe/Lisbon`, demo units including 3C, agreed location choices, and three example incidents. It is idempotent and creates no users, passwords, reports, or memberships. Business logic defaults buildings to UTC; the pilot timezone is data, validated against PostgreSQL's timezone catalog.
 
 Create development users through the real local passwordless flow (or through a trusted Supabase dashboard). Profile creation ignores any role in user metadata. Find the user's UUID in Auth or query their profile as the database administrator. Then, through **trusted SQL only**, assign the user using an email that actually exists in your development database:
 
@@ -97,8 +99,8 @@ Create development users through the real local passwordless flow (or through a 
 insert into public.resident_memberships(user_id, building_id, unit_id)
 select p.id, b.id, u.id
 from public.profiles p
-join public.buildings b on b.name = 'L Tower'
-join public.units u on u.building_id = b.id and u.unit_number = '101'
+join public.buildings b on b.name = 'Tower 2'
+join public.units u on u.building_id = b.id and u.unit_number = '3C'
 where p.email = 'resident@example.invalid';
 
 -- Separate development management user. Run both statements in one transaction.
@@ -107,7 +109,7 @@ update public.profiles set role = 'management'
 where email = 'manager@example.invalid';
 insert into public.management_buildings(user_id, building_id)
 select p.id, b.id from public.profiles p cross join public.buildings b
-where p.email = 'manager@example.invalid' and b.name = 'L Tower'
+where p.email = 'manager@example.invalid' and b.name = 'Tower 2'
 on conflict(user_id, building_id) do nothing;
 commit;
 ```
@@ -124,7 +126,7 @@ npm run build
 npm start                   # serves the production build
 ```
 
-Required services are Supabase Auth, REST, and PostgreSQL. The app has `/login`, `/auth/confirm`, `/app`, `/app/issues`, `/app/issues/new`, and logout. `/` redirects into the protected app. The shell fetches only building names/IDs under the user's own RLS session; it handles unassigned users and database errors explicitly. Residents with an active membership can use **Report an issue** to submit a new issue. Management workflows are not implemented.
+Required services are Supabase Auth, REST, PostgreSQL with pgvector, and Storage. The app has `/login`, `/auth/confirm`, `/app`, `/app/issues`, `/app/issues/new`, `/app/reports/[id]`, `/app/statistics`, private file download, and logout. `/` redirects into the protected app. The shell fetches only building names/IDs under the user's own RLS session; it handles unassigned users and database errors explicitly. Residents with an active membership can use **Report an issue** to submit a new issue. Management workflows are not implemented.
 
 Database authorization regression checks, with the local stack running:
 
@@ -143,7 +145,7 @@ See [verification evidence](docs/verification.md) for actual results and remaini
 
 See [security decisions](docs/security.md) for the authorization matrix and deliberate limitations. SQL is the schema's source of truth; generated types make the Supabase clients typed. User authentication is checked by Supabase `getUser()` in both the Next.js proxy and server layout. Database RLS is the authorization boundary for direct API calls as well as server rendering. The proxy refreshes cookies; login/callback/logout set cookies using the SSR client. Auth pages are never statically cached.
 
-There is no aggregate endpoint yet. Future count queries must use a narrowly scoped, authorized RPC or secure view; do **not** expose other residents' reports to count them. There are no derived counts stored on incidents.
+Aggregate RPCs authorize the complex and visible incidents before counting private reports. They expose counts and shared labels only. There are no derived counters stored on incidents.
 
 ## Deployment preparation
 
@@ -156,16 +158,67 @@ There is no aggregate endpoint yet. Future count queries must use a narrowly sco
 
 ## Current scope
 
-Implemented: project foundation, Supabase SSR Auth, role and membership schema, RLS, protected shell, synthetic seed, migrations, and resident submission with a shared incident list and success confirmation.
+Implemented: project foundation, Supabase SSR Auth, role and membership schema, RLS, complexes with two towers and shared facilities, structured submission, private photo/video attachments, confirmed semantic grouping, private receipts, derived aggregate statistics, migrations and seed.
 
-**Not implemented:** AI matching, semantic search, embeddings, duplicate detection, alert generation, notifications, product email, management dashboard, legacy-ticket UX, image uploads, or external management integration. The alerts table is a future-facing schema only. Management updates are append-only records; no incident-state synchronization workflow runs yet.
+**Not implemented:** automatic unconfirmed merging, management mutation/dashboard UX, alert generation, notifications, product email, legacy-ticket UX, or external management integration. The alerts table is a future-facing schema only. Management updates are append-only records; no incident-state synchronization workflow runs yet.
 
-The original foundation specification is complete. The resident submission flow below was separately requested and is retained. Management status/update workflows, dashboards, incident matching, and notifications remain deferred until explicitly scoped in a separate task. See [specification coverage](docs/specification.md).
+The original foundation and subsequent explicitly authorized extensions are documented in [specification coverage](docs/specification.md). Semantic grouping, statistics, complex locations and private media are now in scope; management workflows, alerts and notifications remain deferred.
 
-## Resident report submission
+## Complex places and resident reporting
 
-Open `/app/issues` → **Report an issue**. An authenticated `resident` must have an active building membership; a unit is optional. The form has a shared title, category, optional shared location, and private report details. Labels explain that titles/locations are building-visible and must not include private resident information.
+Each building belongs to a complex. Residents of either tower can see shared incidents throughout their complex, including the other tower and shared facilities. Unit numbers, memberships, private report text and media remain restricted. A manager sees their assigned tower(s) plus shared facilities, not another tower's private operational data without assignment.
 
-The server action verifies the Auth user, validates and bounds field values, and calls the typed `submit_resident_report` RPC using the public key plus user session. The database independently checks the identity, database role, and active membership. It locks the profile and membership until commit, derives the building/author, creates a `reported` incident, and inserts one linked `app` report. Any failure rolls back both writes. It accepts no building ID, resident ID, source, or status from the caller. Reports remain protected by existing RLS; private text is not copied to the shared incident description or list.
+For the pilot, the existing building ID is retained and renamed from the seed name L Tower to Tower 2; Tower 1 is added in the same complex. Existing memberships, 3C units, reports and local accounts are preserved. Other existing buildings remain in isolated complexes. The number of floors has not been assumed or generated.
 
-After success, the resident returns to the latest-50 shared incident list with confirmation. Each submission intentionally creates a new incident: no AI, duplicate matching, linking to existing incidents, or notifications run. The form disables submission while pending. There is no automatic retry or network-level idempotency guarantee; if a response is lost, check the issues list before resubmitting. Server and database validation reject blank/oversized title and details, oversized location, and unsupported categories.
+The form separates:
+
+- **Place:** Tower 1 / Tower 2 → entrance/lobby, corridors, stairs, elevators, technical rooms, own underground parking and parking gate; or shared grounds, playground, pool, waste point, main/rear/pedestrian gate, Other.
+- **Request type:** fault, missing/unavailable facility or service, request a change.
+- **Problem category:** elevators; water/drainage; electricity/lighting; gas; access; ventilation/temperature; cleaning/waste; pests; building/surfaces; outdoor areas; pool/facilities; noise; Other with a required description.
+- **Public title/location versus private details and files.** Gas guidance tells residents to use emergency services rather than wait in the app.
+
+### Local semantic analysis and synthesis
+
+`npm run model:prepare` downloads `Xenova/multilingual-e5-small` at revision `761b726dd34fb83930e26aab4e9ac3899aa1fa78`. The quantized ONNX weights are SHA-256 verified against the repository's LFS hash before private inference. Only model data is downloaded; no remote Python/custom model code runs. Normal inference uses `local_files_only` and executes on the Node server with two CPU threads; the preparation command explicitly enables artifact downloads. If the OS clears its temporary cache, rerun preparation before reporting. No report text is sent to Hugging Face or a paid AI provider, and no AI API key is required.
+
+Private vectors stay in the unexposed `private` schema. Suggestions expose only existing shared incident metadata and counts, not source text, embeddings, or raw similarity scores. Candidates must be unresolved, in the same complex and exact structured place, have the same category/request type and matching explicit object numbers/location detail. Cosine similarity must be at least 0.89. This is a conservative suggestion threshold, not a probability of correctness. The resident confirms a match or chooses a separate problem. Different towers, elevators, request types and closed incidents are not silently merged.
+
+The transaction creates a report under the confirmed incident or creates a new incident, snapshots the reporting unit if known, attaches uploaded files, and commits the submission key together. Retries of the same submission do not duplicate records. The form retains its batch identifier through validation/matching steps so staged files survive confirmation. Existing legacy incidents without vectors are counted but are not retrospectively reclassified or semantically indexed; that requires a separate reviewed backfill.
+
+Statistics count confirmed groups and synthesize totals by status, category, request type and place. Report totals include individual reports without exposing their rows. Reporting-household totals count distinct known unit UUIDs, never followers, and explicitly disclose reports without a known unit. There is no free-form AI-generated summary that could reveal private details.
+
+### Private photos and video
+
+Up to five attachments, at most one video: JPEG/PNG/WebP/HEIC/HEIF/AVIF photos up to 10 MiB, MP4/MOV/WebM video up to 50 MiB. SVG/HTML and arbitrary executable/document types are not accepted. Browser previews and removal are available before submission. HEIC rendering depends on the browser; a filename remains available when preview is unsupported.
+
+The client reserves bounded, owner-scoped object paths, then uploads directly to private Supabase Storage with its authenticated session. Video bytes do not pass through Next.js Server Actions or Vercel's request-body limit. The server checks actual byte size and media signature before finalizing; the database independently checks authoritative Storage MIME/size metadata and immutable reservation ownership. RLS remains enforced even for direct Storage/API calls. No service-role key is used by the application. MIME/signature checks are not antivirus scanning or video transcoding.
+
+Submitted files are visible only to the report author, assigned management and application admins. Downloads use authorized, noncached redirects to 60-second signed URLs and force download; possession of an already-issued URL permits access until its short expiry. Original metadata is retained in private files; EXIF stripping is not implemented. Neighbors receive neither file metadata nor links. Unsubmitted reservations expire after 24 hours and become inaccessible; automatic removal of abandoned/orphaned physical objects is not implemented. Establish a Storage API cleanup/retention job and quotas before production use; do not directly delete Storage metadata via SQL.
+
+### Updating an existing local installation
+
+Do not reset the database. Stop the Next dev server with Ctrl+C, install the lockfile dependencies with the CPU flag, restart the local Supabase stack to enable Storage, apply pending migrations, and prepare the model:
+
+```sh
+ONNXRUNTIME_NODE_INSTALL=skip npm ci
+npm run db:stop
+npm run db:start
+npx supabase migration up --local
+npm run model:prepare
+npm run dev
+```
+
+`db:stop` retains local data; do not pass `--no-backup`. Preserve `.env.local` and existing users/memberships. During guided setup, execute one step at a time and inspect its result before proceeding. On this cloud host, keep the `SUPABASE_HOME`, `SUPABASE_USE_SLIM_IMAGES` and `DOCKER_CONFIG` values described above. If model downloads require the environment proxy, set `NODE_USE_ENV_PROXY=1` for preparation/startup; never disable TLS checks. Required model destinations are `huggingface.co`, its subdomains and `us.aws.cdn.hf.co` / Hugging Face's configured Xet destinations.
+
+### Additional verification
+
+```sh
+npm run test:semantic
+npm run test:migrations        # clean install + data-preserving legacy upgrade in disposable databases
+# Run against the LOCAL database only; fixtures are rolled back.
+docker exec -i supabase_db_building-issues psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/complex_semantic_media.sql
+```
+
+The existing `npm run test:smoke` covers real local Auth, typed form actions, semantic proposals/confirmation, statistics, idempotency and revocation. Optional mobile browser tests live in `scripts/browser-smoke.mjs`; Playwright and the headless browser are installed outside this checkout, as documented at the script top. The browser test uploads a real PNG and recorded WebM, confirms a second resident's paraphrase with staged media, checks download privacy and removes synthetic users/files afterward. Its local administrative cleanup binding is kept in the Node test process and never passed to the browser.
+
+For hosted deployment, make the pinned model available in a writable cache or deliberately enable cold artifact downloads with server-only `SEMANTIC_ALLOW_MODEL_DOWNLOAD=1`, allow cold-start time/memory, enable Storage and apply all migrations first. The Node server requires native CPU ONNX support; do not put this pipeline in an Edge runtime. Cold-start latency, native bundle size and execution limits must be measured on the chosen Vercel plan; hosted deployment has not been validated here. Add production rate limits and abandoned-upload cleanup before opening access to real residents.

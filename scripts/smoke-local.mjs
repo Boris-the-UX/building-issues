@@ -45,7 +45,7 @@ function sql(statement) {
 try {
   // Confirm the real local mail capture is available before requesting any sign-in.
   assert.equal((await fetch(`${inbox}/api/v1/messages`)).status, 200);
-  for (const path of ['/app', '/app/issues', '/app/issues/new']) {
+  for (const path of ['/app', '/app/issues', '/app/issues/new', '/app/statistics']) {
     const r = await request(path);
     check(r.status === 307 && new URL(r.headers.get('location'), origin).pathname === '/login', `${path} redirects logged-out users`);
   }
@@ -94,7 +94,7 @@ try {
        select p.id,u.building_id,u.id from public.profiles p cross join public.units u
        where p.email='${email}' and u.building_id='10000000-0000-4000-8000-000000000001' and u.unit_number='101';`);
   response = await request('/app/issues'); html = await response.text();
-  check(response.status === 200 && html.includes('L Tower') && html.includes('Report an issue'), 'assigned user sees building in protected issues shell');
+  check(response.status === 200 && html.includes('Tower 2') && html.includes('Report an issue'), 'assigned user sees building in protected issues shell');
   check(!html.includes('your-publishable-key') && !html.includes('service_role'), 'shell includes no administrative key');
   const sharedTitle = `Smoke shared issue ${randomUUID()}`;
   const privateDetails = `PRIVATE report ${randomUUID()}`;
@@ -102,7 +102,8 @@ try {
   check(html.includes('Report for') && html.includes('Shared issue title'), 'assigned resident can open submission form');
   const reportData = (title = sharedTitle, details = privateDetails) => {
     const body = actionForm(html, 1);
-    body.set('title', title); body.set('text', details); body.set('location', 'Shared lobby'); body.set('category', 'elevator');
+    body.set('title', title); body.set('text', details); body.set('location', 'Elevator #2'); body.set('category', 'elevator');
+    body.set('category_detail','');body.set('request_kind','fault');body.set('location_id',sql("select id from public.issue_locations where building_id='10000000-0000-4000-8000-000000000001' and code='elevators';").trim());
     return body;
   };
   response = await request('/app/issues/new', { method: 'POST', body: reportData('   ', '   ') });
@@ -113,11 +114,27 @@ try {
   data.set('status', 'resolved'); data.set('source', 'admin');
   response = await request('/app/issues/new', { method: 'POST', body: data });
   const destination = new URL(response.headers.get('location'), origin);
-  check(response.status === 303 && destination.pathname === '/app/issues' && !!destination.searchParams.get('submitted'), 'successful submission redirects to confirmation');
+  check(response.status === 303 && destination.pathname.startsWith('/app/reports/'), 'successful submission redirects to confirmation');
   const stored = JSON.parse(sql(`select json_build_object('incidents',count(*),'safe',bool_and(i.building_id='10000000-0000-4000-8000-000000000001' and i.status='reported' and i.description='' and i.created_by=p.id),'reports',(select count(*) from public.reports r join public.incidents x on x.id=r.incident_id where x.title='${sharedTitle}' and r.resident_id=p.id and r.source='app')) from public.incidents i join public.profiles p on p.id=i.created_by where i.title='${sharedTitle}' and p.email='${email}' group by p.id;`).trim());
   check(stored.incidents === 1 && stored.reports === 1 && stored.safe, 'one incident and one report created; spoofed identity, building, status and source ignored');
-  const confirmation = await (await request(destination.pathname + destination.search)).text();
-  check(confirmation.includes('Your report was submitted') && confirmation.includes(sharedTitle) && !confirmation.includes(privateDetails), 'confirmation shows shared incident and keeps private report text out of list');
+  const receipt = await (await request(destination.pathname)).text();
+  check(receipt.includes('Your report was submitted') && receipt.includes(privateDetails), 'author can read their private report receipt');
+  const confirmation=await (await request('/app/issues')).text();
+  check(confirmation.includes(sharedTitle) && !confirmation.includes(privateDetails), 'shared incident list keeps private report text out');
+  const retry=await request('/app/issues/new',{method:'POST',body:reportData()});
+  check(new URL(retry.headers.get('location'),origin).pathname===destination.pathname,'retry uses the same report without duplicating it');
+  const statistics=await (await request('/app/statistics')).text();
+  check(statistics.includes('Complex statistics') && !statistics.includes(privateDetails),'statistics show aggregates without private text');
+  const existingIncident=sql(`select id from public.incidents where title='${sharedTitle}';`).trim();
+  html=await (await request('/app/issues/new')).text();
+  const paraphrase=sharedTitle.replace('shared issue','shared problem');
+  response=await request('/app/issues/new',{method:'POST',body:reportData(paraphrase,privateDetails)});
+  check((await response.text()).includes('Similar issues were found'),'real semantic comparison proposes an existing incident');
+  data=reportData(paraphrase,privateDetails);data.set('grouping_choice',existingIncident);
+  response=await request('/app/issues/new',{method:'POST',body:data});
+  check(response.status===303,'resident can confirm semantic grouping');
+  check(sql(`select count(*) from public.reports where incident_id='${existingIncident}';`).trim()==='2','semantic grouping creates two private reports under one incident');
+
   sql(`update public.resident_memberships set is_active=false where user_id=(select id from public.profiles where email='${email}');`);
   response = await request('/app/issues/new', { method: 'POST', body: reportData('Revoked smoke report') });
   check((await response.text()).includes('An active resident membership is required'), 'stale form cannot submit after membership is revoked');
