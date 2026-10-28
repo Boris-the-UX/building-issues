@@ -31,7 +31,7 @@ select id as tower2_loc from public.issue_locations where building_id='f2000000-
 select id as shared_loc from public.issue_locations where complex_id='f1000000-0000-4000-8000-000000000001' and building_id is null and code='rear_gate' \gset
 select id as outsider_loc from public.issue_locations where building_id='f2000000-0000-4000-8000-000000000003' and code='elevators' \gset
 select ('[1,'||array_to_string(array_fill(0,array[383]),',')||']') as embedding \gset
-select jsonb_build_object('submission_id','f4000000-0000-4000-8000-000000000001','title','Elevator #2 not working','text','PRIVATE first resident report','category','elevator','request_kind','fault','location_id',:'tower2_loc','location_detail','Elevator #2','embedding',:'embedding') as payload \gset
+select jsonb_build_object('submission_id','f4000000-0000-4000-8000-000000000001','current_status','no_response','title','Elevator #2 not working','text','PRIVATE first resident report','category','elevator','request_kind','fault','location_id',:'tower2_loc','location_detail','Elevator #2','embedding',:'embedding') as payload \gset
 select pg_temp.deny_complex(format('update public.issue_locations set building_id=%L where id=%L','f2000000-0000-4000-8000-000000000001',:'tower2_loc'),'23514','existing facility cannot be moved to another tower');
 set local role anon;
 select pg_temp.deny_complex($q$select public.get_complex_statistics('f1000000-0000-4000-8000-000000000001')$q$,'42501','anonymous statistics denied');
@@ -44,6 +44,8 @@ select (:'first_report'::jsonb->>'report_id') as report_id \gset
 select pg_temp.check_complex((select count(*)=1 from public.reports where id=:'report_id' and unit_id='f3000000-0000-4000-8000-000000000002'),'report snapshots known unit without exposing it');
 select pg_temp.check_complex((public.submit_complex_report(:'payload'::jsonb)->>'report_id')=:'report_id','same submission key is idempotent');
 select pg_temp.check_complex((select count(*)=1 from public.reports where incident_id=:'incident_id'),'retry adds no duplicate report');
+select pg_temp.check_complex((select count(*)=1 from public.resident_status_observations where incident_id=:'incident_id'),'submission stores status atomically once');
+select pg_temp.deny_complex(format('select public.submit_complex_report(%L::jsonb)',(:'payload'::jsonb||jsonb_build_object('submission_id','f4000000-0000-4000-8000-000000000098','current_status','invalid'))::text),'22023','invalid initial status rejects the whole submission');
 select pg_temp.deny_complex($q$select * from private.incident_embeddings$q$,'42501','private vectors cannot be enumerated');
 select pg_temp.check_complex((select count(*)=1 from public.find_similar_incidents(:'tower2_loc','elevator','fault','Elevator #2','Lift #2 broken',:'embedding')),'same object and vector yields a meaning-based suggestion');
 select pg_temp.check_complex((select count(*)=1 from public.find_similar_incidents(:'tower2_loc','elevator','fault','Elevator #2','Second lift out of service',:'embedding')),'written ordinal object numbers match numeric identifiers');
@@ -115,11 +117,28 @@ select pg_temp.check_complex((select count(*)=0 from storage.objects where name=
 reset role;
 set local role authenticated;
 set local request.jwt.claim.sub='f0000000-0000-4000-8000-000000000001';
-select pg_temp.check_complex(public.get_filtered_complex_statistics('f1000000-0000-4000-8000-000000000001','{}')=public.get_complex_statistics('f1000000-0000-4000-8000-000000000001'),'unfiltered charts preserve aggregate counts');
+select pg_temp.check_complex((public.get_filtered_complex_statistics('f1000000-0000-4000-8000-000000000001','{}')->>'incidents')=(public.get_complex_statistics('f1000000-0000-4000-8000-000000000001')->>'incidents'),'unfiltered charts preserve aggregate counts');
 select pg_temp.check_complex((public.get_filtered_complex_statistics('f1000000-0000-4000-8000-000000000001','{"category":"noise"}')->>'incidents')::int=0,'category filter excludes unrelated issues');
 select pg_temp.check_complex((public.get_filtered_complex_statistics('f1000000-0000-4000-8000-000000000001','{"since":"2999-01-01"}')->>'reports')::int=0,'date filter also scopes report totals');
 select pg_temp.check_complex((public.get_filtered_complex_statistics('f1000000-0000-4000-8000-000000000001','{"place":"f2000000-0000-4000-8000-000000000003"}')->>'incidents')::int=0,'location filter cannot expose unrelated building issues');
 set local request.jwt.claim.sub='f0000000-0000-4000-8000-000000000004';
 select pg_temp.deny_complex($q$select public.get_filtered_complex_statistics('f1000000-0000-4000-8000-000000000001','{}')$q$,'42501','outsider cannot access filtered statistics');
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub='f0000000-0000-4000-8000-000000000001';
+select public.add_resident_status(:'incident_id','resolved','');
+select pg_temp.check_complex(public.get_issue_activity(:'incident_id')->>'status'='resolved','resident resolution is visible as a resident assertion');
+select public.add_resident_status(:'incident_id','not_sure','');
+select pg_temp.check_complex(public.get_issue_activity(:'incident_id')->>'status'='resolved','not sure does not erase a known resolution');
+select pg_temp.check_complex((select count(*)=0 from public.find_similar_incidents(:'tower2_loc','elevator','fault','Elevator #2','Lift #2 broken',:'embedding')),'resident-resolved episode is not suggested');
+select public.add_resident_status(:'incident_id','promised','');
+select pg_temp.check_complex(public.get_issue_activity(:'incident_id')->>'status'='promised','later known observation updates resident status');
+select pg_temp.check_complex(not (public.get_issue_activity(:'incident_id')::text like '%PRIVATE%') and not (public.get_issue_activity(:'incident_id')::text like '%user_id%'),'public history exposes dates and status only');
+select pg_temp.deny_complex(format('select public.add_resident_status(%L,%L,%L)',:'incident_id','other',''),'23514','Other requires a description in the database');
+select pg_temp.deny_complex(format('select public.add_resident_status(%L,%L,%L)',:'incident_id','made_up',''),'23514','unrecognized status rejected in database');
+select pg_temp.deny_complex(format('insert into public.resident_status_observations(incident_id,user_id,status) values(%L,%L,%L)',:'incident_id','f0000000-0000-4000-8000-000000000003','resolved'),'42501','direct forged observation insert denied');
+set local request.jwt.claim.sub='f0000000-0000-4000-8000-000000000004';
+select pg_temp.deny_complex(format('select public.get_issue_activity(%L)',:'incident_id'),'42501','outsider cannot read report dates');
+select pg_temp.deny_complex(format('select public.add_resident_status(%L,%L,%L)',:'incident_id','resolved',''),'42501','outsider cannot change resident status');
 reset role;
 rollback;

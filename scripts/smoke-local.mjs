@@ -72,10 +72,9 @@ try {
   const url = new URL(link);
   assert.equal(url.origin, origin);
   response = await request(url.pathname + url.search);
-  check(response.status === 307 && new URL(response.headers.get('location'), origin).pathname === '/app', 'callback verifies real OTP and redirects to app');
+  check(response.status === 303 && new URL(response.headers.get('location'), origin).pathname === '/app/issues', 'callback verifies real OTP and redirects to app');
   check(cookies.size > 0, 'callback sets session cookies');
-  html = await (await request('/app')).text();
-  check(html.includes('Welcome to Building Issues') && html.includes('No building assigned yet'), 'authenticated unassigned user reaches app');
+  response=await request('/app');check(response.status===307 && new URL(response.headers.get('location'),origin).pathname==='/app/issues','home redirects directly to issues');
   check((await (await request('/app/issues/new')).text()).includes('An active resident membership is required'), 'unassigned user cannot open submission form');
   const authCookie = [...cookies.keys()].find((name) => /-auth-token(?:\.\d+)?$/.test(name))?.replace(/\.\d+$/, '');
   assert.ok(authCookie, 'Auth cookie exists');
@@ -89,7 +88,7 @@ try {
   if (encoded.length <= 3180) cookies.set(authCookie, encoded);
   else for (let i = 0; i < encoded.length; i += 3180) cookies.set(authCookie + '.' + (i / 3180), encoded.slice(i, i + 3180));
   response = await request('/app');
-  check(response.status === 200 && readSession().expires_at > Math.floor(Date.now() / 1000), 'expired session is refreshed through local Auth and response cookies');
+  check(response.status === 307 && readSession().expires_at > Math.floor(Date.now() / 1000), 'expired session is refreshed through local Auth and response cookies');
   sql(`insert into public.resident_memberships(user_id,building_id,unit_id)
        select p.id,u.building_id,u.id from public.profiles p cross join public.units u
        where p.email='${email}' and u.building_id='10000000-0000-4000-8000-000000000001' and u.unit_number='101';`);
@@ -99,11 +98,11 @@ try {
   const sharedTitle = `Smoke shared issue ${randomUUID()}`;
   const privateDetails = `PRIVATE report ${randomUUID()}`;
   html = await (await request('/app/issues/new')).text();
-  check(html.includes('Report for') && html.includes('Shared issue title'), 'assigned resident can open submission form');
+  check(html.includes('Where is the issue?') && html.includes('What is the problem?'), 'assigned resident can open submission form');
   const reportData = (title = sharedTitle, details = privateDetails) => {
     const body = actionForm(html, 1);
     body.set('title', title); body.set('text', details); body.set('location', 'Elevator #2'); body.set('category', 'elevator');
-    body.set('category_detail','');body.set('request_kind','fault');body.set('location_id',sql("select id from public.issue_locations where building_id='10000000-0000-4000-8000-000000000001' and code='elevators';").trim());
+    body.set('problem','lift_stopped');body.set('current_status','no_response');body.set('category_detail','');body.set('request_kind','fault');body.set('location_id',sql("select id from public.issue_locations where building_id='10000000-0000-4000-8000-000000000001' and code='elevators';").trim());
     return body;
   };
   response = await request('/app/issues/new', { method: 'POST', body: reportData('   ', '   ') });
@@ -118,13 +117,13 @@ try {
   const stored = JSON.parse(sql(`select json_build_object('incidents',count(*),'safe',bool_and(i.building_id='10000000-0000-4000-8000-000000000001' and i.status='reported' and i.description='' and i.created_by=p.id),'reports',(select count(*) from public.reports r join public.incidents x on x.id=r.incident_id where x.title='${sharedTitle}' and r.resident_id=p.id and r.source='app')) from public.incidents i join public.profiles p on p.id=i.created_by where i.title='${sharedTitle}' and p.email='${email}' group by p.id;`).trim());
   check(stored.incidents === 1 && stored.reports === 1 && stored.safe, 'one incident and one report created; spoofed identity, building, status and source ignored');
   const receipt = await (await request(destination.pathname)).text();
-  check(receipt.includes('Your report was submitted') && receipt.includes(privateDetails), 'author can read their private report receipt');
+  check(receipt.includes('Your report') && receipt.includes(privateDetails), 'author can read their private report receipt');
   const confirmation=await (await request('/app/issues')).text();
   check(confirmation.includes(sharedTitle) && !confirmation.includes(privateDetails), 'shared incident list keeps private report text out');
   const retry=await request('/app/issues/new',{method:'POST',body:reportData()});
   check(new URL(retry.headers.get('location'),origin).pathname===destination.pathname,'retry uses the same report without duplicating it');
   const statistics=await (await request('/app/statistics')).text();
-  check(statistics.includes('Complex statistics') && !statistics.includes(privateDetails),'statistics show aggregates without private text');
+  check(statistics.includes('Issue statistics') && !statistics.includes(privateDetails),'statistics show aggregates without private text');
   const existingIncident=sql(`select id from public.incidents where title='${sharedTitle}';`).trim();
   html=await (await request('/app/issues/new')).text();
   const paraphrase=sharedTitle.replace('shared issue','shared problem');
@@ -148,8 +147,8 @@ try {
   response = await request(url.pathname + url.search);
   check(new URL(response.headers.get('location'), origin).pathname === '/login', 'used magic link cannot be replayed');
   cookies.clear(); for (const [k, v] of session) cookies.set(k, v);
-  data = actionForm(await (await request('/app')).text());
-  response = await request('/app', { method: 'POST', body: data });
+  data = actionForm(await (await request('/app/issues')).text());
+  response = await request('/app/issues', { method: 'POST', body: data });
   check([303, 307].includes(response.status) && new URL(response.headers.get('location'), origin).pathname === '/login', 'logout redirects to login');
   response = await request('/app');
   check(response.status === 307 && new URL(response.headers.get('location'), origin).pathname === '/login', 'logged-out cookie session cannot access app');

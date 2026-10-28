@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { validateReport, type ReportState } from '@/lib/reports/input';
 import { embedReport } from '@/lib/semantic/model';
 import { verifyPendingAttachments } from '@/lib/media/verify';
+import { problemsFor } from '@/lib/reports/questions';
 import { mediaError } from '@/lib/media/rules';
 
 export async function prepareAttachment(batch: string, location: string, filename: string, mime: string, bytes: number): Promise<{id:string;path:string}|{error:string}> {
@@ -36,7 +37,12 @@ export async function submitReport(_previous: ReportState, formData: FormData): 
  const choices=formData.getAll('grouping_choice');
  const choice=typeof choices[0]==='string'?choices[0]:'';
  formData.set('target_incident_id',choice && choice!=='new'?choice:'');
+ // Derive category and request kind from a valid problem option, never trust hidden classification.
+ const selectedLocation=await supabase.from('issue_locations').select('code').eq('id',String(formData.get('location_id'))).maybeSingle();
+ const problem=problemsFor(selectedLocation.data?.code??'').find((p)=>p.value===formData.get('problem'));
+ if(problem){formData.set('category',problem.category);formData.set('request_kind',problem.kind);if(!String(formData.get('text')??'').trim())formData.set('text',problem.label);}
  const state=validateReport(formData);
+ if(!problem) return {...state,errors:{...state.errors,problem:'Choose a problem from the list.'},message:'Choose a problem.'};
  if(choices.length>1) return {...state,message:'Choose one grouping option.'};
  if(Object.keys(state.errors).length) return state;
  const {data:location,error:locationError}=await supabase.from('issue_locations').select('id,code,complex_id').eq('id',state.values.location_id).maybeSingle();
@@ -44,7 +50,8 @@ export async function submitReport(_previous: ReportState, formData: FormData): 
  const {data:membership}=await supabase.from('resident_memberships').select('id').eq('user_id',user.id).eq('is_active',true).maybeSingle();
  const {data:profile}=await supabase.from('profiles').select('role').eq('id',user.id).maybeSingle();
  if(!membership || profile?.role!=='resident') return {...state,message:'An active resident membership is required.'};
- if(['other','other_inside'].includes(location.code) && !state.values.location) return {...state,errors:{location:'Describe the other location.'},message:'Check the highlighted fields.'};
+ if(['other','other_inside'].includes(location.code)&&!state.values.location)state.values.location='Unspecified';
+
  const {data:batch}=await supabase.from('report_upload_batches').select('report_id').eq('id',state.values.submission_id).maybeSingle();
  if(batch?.report_id) redirect(`/app/reports/${batch.report_id}`);
  let embedding: number[];

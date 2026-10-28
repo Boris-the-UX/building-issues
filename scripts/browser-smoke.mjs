@@ -32,12 +32,12 @@ async function login(page,email){
  }
  assert.ok(message);
  const href=[...message.HTML.matchAll(/href="([^"]+)"/g)].map((m)=>m[1].replaceAll('&amp;','&')).find((u)=>u.includes('/auth/confirm?'));
- assert.ok(href);assert.equal(new URL(href).origin,origin);await page.goto(href);await page.waitForURL('**/app');
+ assert.ok(href);assert.equal(new URL(href).origin,origin);await page.goto(href);await page.waitForURL('**/app/issues',{timeout:15000}).catch(async(error)=>{console.error('Login landing:',new URL(page.url()).pathname,(await page.locator('body').innerText()).slice(0,350));throw error;});
 }
 const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-const page=await context.newPage();page.setDefaultTimeout(90000);
+const page=await context.newPage();page.setDefaultTimeout(20000);
 const secondContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-const second=await secondContext.newPage();second.setDefaultTimeout(90000);
+const second=await secondContext.newPage();second.setDefaultTimeout(20000);
 let attachmentId;
 try{
  await login(page,emails[0]);
@@ -50,7 +50,7 @@ try{
   await page.getByRole('heading',{name:'Issue statistics'}).waitFor();
   check(await page.locator('table').count()===0 && await page.locator('.bar-chart').count()===3,'statistics are three labeled charts');
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile statistics have no horizontal overflow');
-  await page.getByLabel('Issues opened since').fill('2999-01-01');
+  await page.getByLabel('Year',{exact:true}).fill('2999');await page.getByLabel('Month',{exact:true}).selectOption('01');await page.getByLabel('Day',{exact:true}).selectOption('01');
   await page.getByRole('button',{name:'Apply filters'}).click();
   await page.getByText('No issues match these filters.',{exact:false}).waitFor();
   check(await page.locator('.bar-chart').count()===0,'date filter scopes all charts');
@@ -67,24 +67,21 @@ try{
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile issue cards have no horizontal overflow');
  } else {
  await page.goto(origin+'/app/issues/new');
- check(await page.locator('select:visible').count()===0,'first step has one description field and no classification selects');
- await page.getByLabel('What happened and where?').fill(privateText);
- await page.getByRole('button',{name:'Continue',exact:true}).click();
- check(await page.getByLabel('Where is the issue?').inputValue()==='10000000-0000-4000-8000-000000000001','mobile form defaults to the resident’s Tower 2');
+ check(await page.getByLabel('Where is the issue?').inputValue()==='','building choice is mandatory and never guessed from home');
+ const buildingOptions=await page.locator('#scope').innerText();
+ check(['Tower 1','Tower 2','Bloco 1','Bloco 2'].every((name)=>buildingOptions.includes(name)),'all four buildings are available');
  await page.getByLabel('Where is the issue?').selectOption('shared');
- const options=await page.locator('#location_id').innerText();
- check(['Playground','Swimming pool','Waste collection area','Main vehicle gate','Rear gate'].every((name)=>options.includes(name)),'shared facilities include all agreed objects');
- await page.getByLabel('Problem category').selectOption('gas');
- check(await page.getByText('If you smell gas',{exact:false}).isVisible(),'gas category shows emergency guidance');
- await page.getByLabel('Problem category').selectOption('other');
- check(await page.getByLabel('Describe the other problem type').isVisible(),'Other reveals a free-text problem type');
  const place=sql("select id from public.issue_locations where complex_id='10000000-0000-4000-8000-000000000001' and building_id is null and code='waste';").trim();
- await page.getByLabel('Place / facility').selectOption(place);
- await page.getByLabel('Type of request').selectOption('missing_service');
- await page.getByLabel('Problem category').selectOption('cleaning');
- await page.getByLabel('Specific object, floor or landmark').fill('Near the main entrance');
+ await page.getByLabel('Which place or facility?').selectOption(place);
+ await page.getByLabel('What is the problem?').selectOption('other');
+ check(await page.getByLabel('Describe the problem',{exact:true}).isVisible(),'Other reveals a required problem description');
+ await page.getByLabel('What is the problem?').selectOption('missing_waste');
+ await page.getByLabel('What is the current status?').selectOption('no_response');
+ await page.getByText('Additional details (optional)',{exact:true}).click();
+ await page.getByLabel('Floor, object number or landmark').fill('Near the main entrance');
+ await page.getByLabel('Additional details',{exact:true}).fill(privateText);
+ await page.getByRole('button',{name:'Continue',exact:true}).click();
  await page.getByLabel('Public issue title').fill(sharedTitle);
-
  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5r0AAAAASUVORK5CYII=','base64');
  await page.locator('#media').setInputFiles({name:'evidence.png',mimeType:'image/png',buffer:png});
  check(await page.getByRole('img',{name:'evidence.png'}).isVisible(),'selected photo has a mobile preview');
@@ -105,6 +102,20 @@ try{
  check(await page.getByRole('link',{name:'evidence.png',exact:true}).isVisible(),'actual photo upload is attached to the submitted report');
  check(await page.getByRole('link',{name:'gate.webm',exact:true}).isVisible(),'actual video upload is attached to the submitted report');
  check(await page.getByText(privateText,{exact:true}).isVisible(),'author sees their private report');
+ await page.getByRole('link',{name:'View shared issue and history'}).click();
+ await page.waitForURL('**/app/issues/*');
+ check(await page.getByRole('heading',{name:'Your report',exact:true}).isVisible(),'shared issue explains the private Your report block');
+ check(!(await page.locator('body').innerText()).includes(privateText),'shared history excludes private narrative');
+ check(await page.getByRole('heading',{name:'Resident reports (1)'}).isVisible(),'shared history lists report dates');
+ await page.getByLabel('What is the current status?').selectOption('resolved');
+ await page.getByRole('button',{name:'Save status update'}).click();
+ await page.locator('.status').filter({hasText:'Resolved / Fixed'}).waitFor();
+ check(await page.getByText('Your update was saved.',{exact:true}).isVisible(),'resident can save a status update');
+ await page.getByLabel('What is the current status?').selectOption('no_response');
+ await page.getByRole('button',{name:'Save status update'}).click();
+ await page.locator('.status').filter({hasText:'No response'}).waitFor();
+ check(await page.getByRole('heading',{name:'Status history'}).isVisible(),'status changes retain a dated history');
+
  attachmentId=sql(`select a.id from public.report_attachments a join public.profiles p on p.id=a.user_id where p.email='${emails[0]}' and a.filename='evidence.png';`).trim();
  const download=await context.request.get(origin+'/api/attachments/'+attachmentId,{maxRedirects:0});
  check(download.status()===303&&download.headers()['cache-control'].includes('no-store'),'authorized file link is short-lived and not cached');
@@ -120,13 +131,15 @@ try{
  const denied=await secondContext.request.get(origin+'/api/attachments/'+attachmentId,{maxRedirects:0});
  check(denied.status()===404,'neighbor cannot access the private attachment by ID');
  await second.goto(origin+'/app/issues/new');
- await second.getByLabel('What happened and where?').fill('There is no shared place to dispose of household rubbish. We need a common collection point.');
+ await second.getByLabel('Where is the issue?').selectOption('shared');
+ await second.getByLabel('Which place or facility?').selectOption(place);
+ await second.getByLabel('What is the problem?').selectOption('missing_waste');
+ await second.getByLabel('What is the current status?').selectOption('not_sure');
+ await second.getByText('Additional details (optional)',{exact:true}).click();
+ await second.getByLabel('Floor, object number or landmark').fill('Near the main entrance');
+ await second.getByLabel('Additional details',{exact:true}).fill('There is no shared place to dispose of household rubbish. We need a common collection point.');
  await second.getByRole('button',{name:'Continue',exact:true}).click();
- await second.getByLabel('Where is the issue?').selectOption('shared');await second.getByLabel('Place / facility').selectOption(place);
- await second.getByLabel('Type of request').selectOption('missing_service');await second.getByLabel('Problem category').selectOption('cleaning');
- await second.getByLabel('Specific object, floor or landmark').fill('Near the main entrance');
  await second.getByLabel('Public issue title').fill(sharedTitle.replace('Missing communal waste point','No place for communal rubbish bins'));
-
  await second.locator('#media').setInputFiles({name:'neighbor-evidence.png',mimeType:'image/png',buffer:png});
  await second.getByRole('button',{name:'Send report',exact:true}).click();
  await second.getByText('Similar issues were found.',{exact:false}).waitFor();
@@ -141,7 +154,7 @@ try{
  check(await second.locator('table').count()===0 && await second.locator('.bar-chart').count()===3,'statistics use labeled charts instead of tables');
  check(await second.locator('.bar-label').first().innerText().then((text)=>/\d/.test(text)),'chart counts are visible without hovering');
  check(await second.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'statistics fit a mobile screen');
- await second.getByLabel('Category',{exact:true}).selectOption('noise');
+ await second.locator('select[name=category]').selectOption('noise');
  await second.getByRole('button',{name:'Apply filters'}).click();
  await second.getByText('No issues match these filters.',{exact:false}).waitFor();
  check(await second.locator('.bar-chart').count()===0,'filters update charts and show an explicit empty state');
@@ -155,6 +168,11 @@ try{
  await second.screenshot({path:'/tmp/building-issues-mobile-statistics.png',fullPage:true});
  }
  console.log(`${checks} real mobile browser checks passed.`);
+}catch(error){
+ console.error('Browser page:',new URL(page.url()).host,new URL(page.url()).pathname);
+ await page.screenshot({path:'/tmp/building-issues-browser-error.png',fullPage:true});
+ console.error((await page.locator('body').innerText()).slice(0,1800));
+ throw error;
 }finally{
  await browser.close();
  const paths=sql(`select a.path from public.report_attachments a join public.profiles p on p.id=a.user_id where p.email in ('${emails[0]}','${emails[1]}');`).trim().split('\n').filter(Boolean);

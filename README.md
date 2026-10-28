@@ -90,7 +90,7 @@ Database types are generated from the migrated local database and checked into `
 
 ## Seed data
 
-`supabase/seed.sql` contains the L Tower complex, Tower 1 / Tower 2, fictional address/management company, timezone `Europe/Lisbon`, demo units including 3C, agreed location choices, and three example incidents. It is idempotent and creates no users, passwords, reports, or memberships. Business logic defaults buildings to UTC; the pilot timezone is data, validated against PostgreSQL's timezone catalog.
+`supabase/seed.sql` contains the L Tower complex, Tower 1 / Tower 2 / Bloco 1 / Bloco 2, fictional address/management company, timezone `Europe/Lisbon`, demo units including 3C, agreed location choices, and three example incidents. It is idempotent and creates no users, passwords, reports, or memberships. Business logic defaults buildings to UTC; the pilot timezone is data, validated against PostgreSQL's timezone catalog.
 
 Create development users through the real local passwordless flow (or through a trusted Supabase dashboard). Profile creation ignores any role in user metadata. Find the user's UUID in Auth or query their profile as the database administrator. Then, through **trusted SQL only**, assign the user using an email that actually exists in your development database:
 
@@ -158,7 +158,7 @@ Aggregate RPCs authorize the complex and visible incidents before counting priva
 
 ## Current scope
 
-Implemented: project foundation, Supabase SSR Auth, role and membership schema, RLS, complexes with two towers and shared facilities, structured submission, private photo/video attachments, confirmed semantic grouping, private receipts, derived aggregate statistics, migrations and seed.
+Implemented: project foundation, Supabase SSR Auth, role and membership schema, RLS, complexes with towers, lower buildings and shared facilities, structured submission, private photo/video attachments, confirmed semantic grouping, private receipts, derived aggregate statistics, migrations and seed.
 
 **Not implemented:** automatic unconfirmed merging, management mutation/dashboard UX, alert generation, notifications, product email, legacy-ticket UX, or external management integration. The alerts table is a future-facing schema only. Management updates are append-only records; no incident-state synchronization workflow runs yet.
 
@@ -166,16 +166,13 @@ The original foundation and subsequent explicitly authorized extensions are docu
 
 ## Complex places and resident reporting
 
-Each building belongs to a complex. Residents of either tower can see shared incidents throughout their complex, including the other tower and shared facilities. Unit numbers, memberships, private report text and media remain restricted. A manager sees their assigned tower(s) plus shared facilities, not another tower's private operational data without assignment.
+Each building belongs to a complex. Residents of any building can see shared incidents throughout their complex, including the other buildings and shared facilities. Unit numbers, memberships, private report text and media remain restricted. A manager sees their assigned tower(s) plus shared facilities, not another tower's private operational data without assignment.
 
-For the pilot, the existing building ID is retained and renamed from the seed name L Tower to Tower 2; Tower 1 is added in the same complex. Existing memberships, 3C units, reports and local accounts are preserved. Other existing buildings remain in isolated complexes. The number of floors has not been assumed or generated.
+For the pilot, the existing building ID is retained and renamed from the seed name L Tower to Tower 2; Tower 1, Bloco 1 and Bloco 2 are added in the same complex. Existing memberships, 3C units, reports and local accounts are preserved. Other existing buildings remain in isolated complexes. The number of floors has not been assumed or generated.
 
-The form separates:
+The form requires building/shared grounds, place/facility, a contextual problem option (including Other), and the resident-known status from the survey. Floor/object detail, private narrative and files are optional. Category and request kind are derived server-side. The resident reviews the public title before submission. Gas guidance directs residents to emergency services rather than waiting in the app. Bloco 1/2 are not assumed to have lifts or underground parking.
 
-- **Place:** Tower 1 / Tower 2 → entrance/lobby, corridors, stairs, elevators, technical rooms, own underground parking and parking gate; or shared grounds, playground, pool, waste point, main/rear/pedestrian gate, Other.
-- **Request type:** fault, missing/unavailable facility or service, request a change.
-- **Problem category:** elevators; water/drainage; electricity/lighting; gas; access; ventilation/temperature; cleaning/waste; pests; building/surfaces; outdoor areas; pool/facilities; noise; Other with a required description.
-- **Public title/location versus private details and files.** Gas guidance tells residents to use emergency services rather than wait in the app.
+The shared issue page shows report dates and append-only resident status updates; Your report links to the author's private text/files. Statuses are resident assertions rather than verified management progress. Not sure does not erase a known status. Home opens Issues directly; statistics use filtered charts and English date controls.
 
 ### Local semantic analysis and synthesis
 

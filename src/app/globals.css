@@ -87,3 +87,9 @@ header > form button { background: transparent; color: #536962; padding-inline: 
  .stats-grid dt { font-size: .8rem; }
  .stats-grid dd { font-size: 1.7rem; }
 }
+.upload-button + .field-help { display: inline-block; margin-left: .75rem; }
+.report-form details { margin-top: 1rem; }
+.report-form summary { cursor: pointer; padding: .6rem 0; color: #116454; }
+.date-parts legend { font-size: .9rem; font-weight: 600; }
+.date-parts > div { display: grid; grid-template-columns: .8fr 1fr 1fr; gap: .3rem; }
+.date-parts input,.date-parts select { min-width: 0; padding-inline: .35rem; }

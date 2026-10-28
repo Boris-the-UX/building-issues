@@ -1,39 +1,32 @@
 'use client';
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
-import { categories, requestKinds, type LocationOption } from '@/lib/complex/options';
-import { suggestDraft } from '@/lib/reports/draft';
+import { type LocationOption } from '@/lib/complex/options';
+import { problemsFor, residentStatuses } from '@/lib/reports/questions';
 import { initialReportState } from '@/lib/reports/input';
 import { mediaError, mediaMime } from '@/lib/media/rules';
 import { createClient } from '@/lib/supabase/client';
 import { prepareAttachment, removePendingAttachment, submitReport } from './actions';
 
 type SelectedMedia={key:string;file:File;url:string;uploaded?:{id:string;path:string}};
-export function ReportForm({locations,initialBuilding,submissionId}:{locations:LocationOption[];initialBuilding:string;submissionId:string}) {
+export function ReportForm({locations,submissionId}:{locations:LocationOption[];submissionId:string}) {
  const [batchId]=useState(submissionId);
  const [state,action,pending]=useActionState(submitReport,{...initialReportState,values:{...initialReportState.values,submission_id:batchId}});
- const [building,setBuilding]=useState(initialBuilding);
- const [location,setLocation]=useState(locations.find((l)=>l.building_id===initialBuilding)?.id??'');
- const [category,setCategory]=useState('other');
+ const [building,setBuilding]=useState('');
+ const [location,setLocation]=useState('');
+ const [problem,setProblem]=useState('');
+ const [status,setStatus]=useState('');
  const [description,setDescription]=useState('');
  const [review,setReview]=useState(false);
  const [title,setTitle]=useState('');
  const [detail,setDetail]=useState('');
- const [kind,setKind]=useState('fault');
  const [other,setOther]=useState('');
- const [editing,setEditing]=useState(false);
- const descriptionRef=useRef<HTMLTextAreaElement>(null);
  const reviewRef=useRef<HTMLDivElement>(null);
+ const place=locations.find((l)=>l.id===location);
+ const selectedProblem=problemsFor(place?.code??'').find((p)=>p.value===problem);
  function prepareReview() {
-  if(!description.trim()){descriptionRef.current?.focus();return;}
-  const draft=suggestDraft(description,locations);
-  setLocation(draft.place?.id??'');
-  setBuilding(draft.place?(draft.place.building_id??'shared'):initialBuilding);
-  setCategory(draft.category);setKind(draft.requestKind);setDetail(draft.detail);
-  setTitle(`${categories.find((c)=>c.value===draft.category)?.label??'Issue'}${draft.place?` · ${draft.place.name}`:''}${draft.detail?` · ${draft.detail}`:''}`);
-  setOther('');setEditing(false);setReview(true);
-  setTimeout(()=>reviewRef.current?.focus(),0);
+  setTitle(`${selectedProblem?.value==='other'?other:selectedProblem?.label} · ${place?.buildings?.name??'Shared facilities & grounds'} · ${place?.name}${detail?` · ${detail}`:''}`.slice(0,240));
+  setReview(true);setTimeout(()=>reviewRef.current?.focus(),0);
  }
-
  const [media,setMedia]=useState<SelectedMedia[]>([]);
  const [uploading,setUploading]=useState(false);
  const [uploadError,setUploadError]=useState('');
@@ -55,7 +48,7 @@ export function ReportForm({locations,initialBuilding,submissionId}:{locations:L
   }
   uploaded.current.delete(item.key);URL.revokeObjectURL(item.url);setMedia((current)=>current.filter((m)=>m.key!==item.key));
  }
- return <form action={action} className="report-form" onInvalidCapture={()=>setEditing(true)} aria-busy={busy} onSubmit={(event)=>{
+ return <form action={action} className="report-form" aria-busy={busy} onSubmit={(event)=>{
   if(!review){event.preventDefault();prepareReview();return;}
   if(!media.length)return;
   event.preventDefault();
@@ -85,49 +78,42 @@ export function ReportForm({locations,initialBuilding,submissionId}:{locations:L
   {uploadError&&<p role="alert" className="error">{uploadError}</p>}
   <fieldset disabled={busy}>
    <legend className="sr-only">New complex issue</legend>
-   <label htmlFor="text">What happened and where?</label>
-   <p id="text-help" className="field-help">Write naturally or use the microphone on your phone’s keyboard. For example: “Cockroaches in the Tower 2 corridor on floor 3 this morning.”</p>
-   <textarea ref={descriptionRef} id="text" name="text" required rows={4} maxLength={10000} value={description} onChange={(event)=>{setDescription(event.target.value);setReview(false);}} aria-describedby="text-help text-error" aria-invalid={!!state.errors.text}/>
-   <p className="field-help">Your description and attachments are private. Only the title and location you approve below are shared with neighbors.</p>
-   <p id="text-error" className="error field-error">{state.errors.text}</p>
-   {review&&<div ref={reviewRef} tabIndex={-1} className="draft-review">
-   <h2>Check before sending</h2>
-   <p>We suggested details from your description. Correct anything that is wrong. Nothing has been sent yet.</p>
-   <label htmlFor="title">Public issue title</label>
-   <p id="title-help" className="field-help">Give neighbors a short title they can recognize. No names, apartment numbers or personal information.</p>
-   <input id="title" name="title" required maxLength={240} value={title} onChange={(event)=>setTitle(event.target.value)} placeholder="For example, Cockroaches in the floor 3 corridor" aria-describedby="title-help"/>
-   <p className="error field-error">{state.errors.title}</p>
-   <p><strong>Place:</strong> {locations.find((l)=>l.id===location)?.buildings?.name??(location?'Shared grounds':'Please choose below')} · {locations.find((l)=>l.id===location)?.name} {detail&&` · ${detail}`}</p>
-   <p><strong>Category:</strong> {categories.find((c)=>c.value===category)?.label} · {requestKinds.find((k)=>k.value===kind)?.label}</p>
-   <details open={editing||!location||category==='other'||category==='gas'||!!Object.keys(state.errors).length} onToggle={(event)=>setEditing(event.currentTarget.open)}>
-   <summary>Edit place and details</summary>
    <label htmlFor="scope">Where is the issue?</label>
-   <select id="scope" value={building} onChange={(event)=>{
-    const value=event.target.value;setBuilding(value);setLocation('');
-   }}>
-    {towers.map(([id,name])=><option key={id} value={id}>{name} — building and parking</option>)}
-    <option value="shared">Shared complex areas</option>
+   <select id="scope" value={building} required disabled={review} onChange={(event)=>{setBuilding(event.target.value);setLocation('');setProblem('');}}>
+    <option value="">Choose a building or shared grounds</option>
+    {towers.map(([id,name])=><option key={id} value={id}>{name}</option>)}
+    <option value="shared">Shared facilities &amp; grounds</option>
    </select>
-   <label htmlFor="location_id">Place / facility</label>
-   <select id="location_id" name="location_id" value={location} required aria-invalid={!!state.errors.location_id} onChange={(event)=>setLocation(event.target.value)}>
-    <option value="">Choose a place</option>
-    {available.map((l)=><option key={l.id} value={l.id}>{l.name}</option>)}
+   <label htmlFor="location_id">Which place or facility?</label>
+   <select id="location_id" value={location} required disabled={review} onChange={(event)=>{setLocation(event.target.value);setProblem('');}}>
+    <option value="">Choose a place or facility</option>{available.map((l)=><option key={l.id} value={l.id}>{l.name}</option>)}
    </select>
-   {state.errors.location_id&&<p className="error">{state.errors.location_id}</p>}
-   <label htmlFor="location">Specific object, floor or landmark <span className="muted">(optional, except for “Other”)</span></label>
-   <p id="location-help" className="field-help">Shared with residents. For elevators, include the elevator number. Avoid apartment numbers and personal information.</p>
-   <input id="location" name="location" maxLength={240} value={detail} onChange={(event)=>setDetail(event.target.value)} aria-describedby="location-help location-error" aria-invalid={!!state.errors.location}/>
-   <p id="location-error" className="error field-error">{state.errors.location}</p>
-   <label htmlFor="request_kind">Type of request</label>
-   <select id="request_kind" name="request_kind" value={kind} onChange={(event)=>setKind(event.target.value)}>{requestKinds.map((k)=><option key={k.value} value={k.value}>{k.label}</option>)}</select>
-   <label htmlFor="category">Problem category</label>
-   <select id="category" name="category" value={category} onChange={(event)=>setCategory(event.target.value)}>{categories.map((c)=><option key={c.value} value={c.value}>{c.label}</option>)}</select>
-   {category==='other'?<><label htmlFor="category_detail">Describe the other problem type (shared)</label><input id="category_detail" name="category_detail" maxLength={160} required value={other} onChange={(event)=>setOther(event.target.value)}/><p className="error field-error">{state.errors.category_detail}</p></>:<input type="hidden" name="category_detail" value=""/>}
-   {category==='gas'&&<p className="notice" role="note">If you smell gas or there is immediate danger, move to safety and contact emergency services or your gas emergency line. Do not wait for a response in this app.</p>}
+   <input type="hidden" name="location_id" value={location}/>
+   <label htmlFor="problem">What is the problem?</label>
+   <select id="problem" value={problem} required disabled={review||!location} onChange={(event)=>setProblem(event.target.value)}>
+    <option value="">Choose a problem</option>{problemsFor(place?.code??'').map((p)=><option key={p.value} value={p.value}>{p.label}</option>)}
+   </select>
+   <input type="hidden" name="problem" value={problem}/>
+   {problem==='other'&&<><label htmlFor="category_detail">Describe the problem</label><input id="category_detail" name="category_detail" required maxLength={160} value={other} onChange={(event)=>{setOther(event.target.value);setReview(false);}}/></>}
+   {selectedProblem?.category==='gas'&&<p className="notice">If you smell gas, move to safety and contact emergency services. Do not wait for this app.</p>}
+   <label htmlFor="current_status">What is the current status?</label>
+   <p className="field-help">Choose based on what you know. This is your report, not confirmation from management.</p>
+   <select id="current_status" name="current_status" required value={status} onChange={(event)=>setStatus(event.target.value)}><option value="">Choose a status</option>{Object.entries(residentStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
+   {status==='other'&&<><label htmlFor="status_detail">Describe the status</label><input id="status_detail" name="status_detail" required maxLength={160}/></>}
+   <details><summary>Additional details (optional)</summary>
+    <label htmlFor="location">Floor, object number or landmark</label><input id="location" name="location" maxLength={240} value={detail} onChange={(event)=>{setDetail(event.target.value);setReview(false);}}/>
+    <p className="field-help">This location detail is shared. Avoid names and apartment numbers.</p>
+    <label htmlFor="text">Additional details</label><textarea id="text" name="text" rows={3} maxLength={10000} value={description} onChange={(event)=>setDescription(event.target.value)}/>
+    <p className="field-help">Private to you and authorized staff. You can use your phone keyboard’s microphone to dictate.</p>
    </details>
+   {review&&<div ref={reviewRef} tabIndex={-1} className="draft-review"><h2>Check before sending</h2>
+    <label htmlFor="title">Public issue title</label><input id="title" name="title" required maxLength={240} value={title} onChange={(event)=>setTitle(event.target.value)}/>
+    <p className="field-help">Visible to neighbors. Do not include personal information.</p>
+    <button type="button" onClick={()=>setReview(false)}>Edit answers</button>
    </div>}
+   {Object.entries(state.errors).map(([key,message])=><p key={key} className="error" role="alert">{message}</p>)}
    <label htmlFor="media">Photos and video <span className="muted">(optional)</span></label>
-   <p id="media-help" className="field-help">Private attachments. Up to five files: photos up to 10 MB each and one video up to 50 MB. HEIC is accepted; browser previews may be unavailable.</p>
+   <details id="media-help"><summary>File requirements</summary><p>Private attachments. Up to five files: photos up to 10 MB each and one video up to 50 MB. HEIC previews may be unavailable.</p></details>
    <label htmlFor="media" className="upload-button">Add photos or video</label>
    <span className="field-help" role="status">{media.length?`${media.length} file${media.length===1?'':'s'} selected`:'No files selected'}</span>
    <input id="media" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,video/mp4,video/quicktime,video/webm" multiple aria-describedby="media-help" onChange={(event)=>{

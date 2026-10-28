@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   if (tokenHash && type === 'email') {
     const supabase = await createClient();
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
-    if (!error) return NextResponse.redirect(new URL('/app', request.url));
+    if (!error) return new NextResponse(null, { status: 303, headers: { Location: '/app/issues' } });
   }
-  return NextResponse.redirect(new URL('/login?error=invalid_link', request.url));
+  return new NextResponse(null, { status: 303, headers: { Location: '/login?error=invalid_link' } });
 }

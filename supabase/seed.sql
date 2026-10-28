@@ -3,8 +3,11 @@ begin;
 insert into public.complexes(id,name,timezone) values('10000000-0000-4000-8000-000000000001','L Tower','Europe/Lisbon') on conflict(id) do nothing;
 insert into public.buildings(id,complex_id,name,address,management_company,timezone) values
 ('10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','Tower 2','1 Example Avenue (fictional)','Example Property Management','Europe/Lisbon'),
-('10000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','Tower 1','1 Example Avenue (fictional)','Example Property Management','Europe/Lisbon')
+('10000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001','Tower 1','1 Example Avenue (fictional)','Example Property Management','Europe/Lisbon'),
+('10000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000001','Bloco 1','1 Example Avenue (fictional)','Example Property Management','Europe/Lisbon'),
+('10000000-0000-4000-8000-000000000004','10000000-0000-4000-8000-000000000001','Bloco 2','1 Example Avenue (fictional)','Example Property Management','Europe/Lisbon')
 on conflict(id) do nothing;
+delete from public.issue_locations l where l.building_id in ('10000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000004') and l.code in ('elevators','parking','parking_gate','technical') and not exists(select 1 from public.incidents i where i.location_id=l.id);
 insert into public.units(building_id,unit_number)
 select '10000000-0000-4000-8000-000000000001'::uuid,n from unnest(array['101','102','201','202','3C']) n on conflict(building_id,unit_number) do nothing;
 insert into public.incidents(id,building_id,title,description,category,location,status) values

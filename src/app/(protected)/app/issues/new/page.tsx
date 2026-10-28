@@ -18,6 +18,6 @@ export default async function NewIssue() {
  return <section className="card"><Link href="/app/issues">Back to issues</Link><h1>Report an issue</h1>
   {profileError||membershipError||locationError?<p role="alert" className="error">Unable to check your complex access. Please try again later.</p>
    :profile?.role!=='resident'||!membership||!locations?.length?<p>An active resident membership is required to submit a report. Contact your building administrator.</p>
-   :<ReportForm locations={locations} initialBuilding={membership.building_id} submissionId={randomUUID()}/>}
+   :<ReportForm locations={locations} submissionId={randomUUID()}/>}
  </section>;
 }

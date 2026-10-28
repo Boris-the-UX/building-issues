@@ -792,6 +792,71 @@ export type Database = {
                     }
                 ];
             };
+            "resident_status_observations": {
+                Row: {
+                    "created_at": string;
+                    "detail": string | null;
+                    "id": string;
+                    "incident_id": string;
+                    "report_id": string | null;
+                    "status": string;
+                    "user_id": string;
+                };
+                ComputedFields: never;
+                Insert: {
+                    "created_at"?: string;
+                    "detail"?: string | null;
+                    "id"?: string;
+                    "incident_id": string;
+                    "report_id"?: string | null;
+                    "status": string;
+                    "user_id": string;
+                };
+                Update: {
+                    "created_at"?: string;
+                    "detail"?: string | null;
+                    "id"?: string;
+                    "incident_id"?: string;
+                    "report_id"?: string | null;
+                    "status"?: string;
+                    "user_id"?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "resident_status_observations_incident_id_fkey";
+                        columns: [
+                            "incident_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "incidents";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "resident_status_observations_report_id_fkey";
+                        columns: [
+                            "report_id"
+                        ];
+                        isOneToOne: true;
+                        referencedRelation: "reports";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    },
+                    {
+                        foreignKeyName: "resident_status_observations_user_id_fkey";
+                        columns: [
+                            "user_id"
+                        ];
+                        isOneToOne: false;
+                        referencedRelation: "profiles";
+                        referencedColumns: [
+                            "id"
+                        ];
+                    }
+                ];
+            };
             "units": {
                 Row: {
                     "building_id": string;
@@ -879,6 +944,14 @@ export type Database = {
             [_ in never]: never;
         };
         Functions: {
+            "add_resident_status": {
+                Args: {
+                    "p_detail"?: string;
+                    "p_incident": string;
+                    "p_status": string;
+                };
+                Returns: undefined;
+            };
             "cancel_report_attachment": {
                 Args: {
                     "p_id": string;
@@ -902,8 +975,26 @@ export type Database = {
                     "title": string;
                 }[];
             };
-            "get_filtered_complex_statistics": { Args: { p_complex: string; p_filters: Json }; Returns: Json; };
             "get_complex_statistics": {
+                Args: {
+                    "p_complex": string;
+                };
+                Returns: Json;
+            };
+            "get_filtered_complex_statistics": {
+                Args: {
+                    "p_complex": string;
+                    "p_filters": Json;
+                };
+                Returns: Json;
+            };
+            "get_issue_activity": {
+                Args: {
+                    "p_incident": string;
+                };
+                Returns: Json;
+            };
+            "get_resident_statuses": {
                 Args: {
                     "p_complex": string;
                 };

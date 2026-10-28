@@ -20,6 +20,8 @@ async function disposable(label,callback){
 await disposable('all migrations and repeated seed from a clean database',async(database)=>{
  for(const name of migrations)run(database,readFileSync('supabase/migrations/'+name,'utf8'));
  run(database,readFileSync('supabase/seed.sql','utf8'));run(database,readFileSync('supabase/seed.sql','utf8'));
+ assert.equal(run(database,"select count(*) from public.buildings where complex_id='10000000-0000-4000-8000-000000000001';").trim(),'4');
+ assert.equal(run(database,"select count(*) from public.issue_locations where building_id in ('10000000-0000-4000-8000-000000000003','10000000-0000-4000-8000-000000000004') and code in ('elevators','parking');").trim(),'0');
  for(const name of readdirSync('supabase/tests').filter((name)=>name.endsWith('.sql')).sort()){
   run(database,readFileSync('supabase/tests/'+name,'utf8'));console.log('PASS: clean database suite',name);
  }
@@ -40,5 +42,5 @@ await disposable('existing Tower 2 / 3C account and private history preserved',a
  'ticket',(select count(*) from public.legacy_tickets where resident_topic='Retained recollection'),
  'towers',(select count(*) from public.buildings where complex_id='10000000-0000-4000-8000-000000000001'),
  'unit_copies',(select count(*) from public.units where building_id='10000000-0000-4000-8000-000000000001' and unit_number='3C'));`);
- assert.deepEqual(JSON.parse(result.trim()),{membership:1,report:1,ticket:1,towers:2,unit_copies:1});
+ assert.deepEqual(JSON.parse(result.trim()),{membership:1,report:1,ticket:1,towers:4,unit_copies:1});
 });
