@@ -30,3 +30,11 @@ The resident begins with one private description and optional media. Phone keybo
 Before saving, the resident reviews a public title assembled only from controlled category/place labels and recognized numeric floor/object details, keeping their private narrative out of the public title. All fields remain editable. Existing server validation, membership/RLS, private media upload, semantic matching and explicit grouping confirmation continue unchanged. This change does not add community status voting or statistics charts.
 
 Check draft extraction with `node scripts/test-draft.mjs`; the mobile browser suite covers the new first step and the full media/grouping submission flow.
+
+### Resident overview and statistics
+
+The overview uses one table with separate Issue, Location, Status and Reports columns (stacked cards on mobile). Tower names are data in the Location column, never standalone navigation. Private report details remain behind the author's My report link. No unverified request-type label is shown in overview rows.
+
+Issue statistics uses labeled horizontal bar charts for category, status and location, with exact counts visible on touch screens. Summary values align at the bottom. Location, category, status and opened-since filters apply together on the server to all metrics and charts through an authorized aggregate RPC; there is no 100-row chart sampling limit. The date filter selects issues by their creation date, not the dates of individual reports. Reports count all reports attached to the filtered issues; charts count distinct issues. No private narrative or media is returned.
+
+The upload control has an English label and English file-count text independent of browser locale. The operating system's file chooser language is controlled by the user's device.

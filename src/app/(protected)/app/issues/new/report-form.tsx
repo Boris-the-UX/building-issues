@@ -128,7 +128,9 @@ export function ReportForm({locations,initialBuilding,submissionId}:{locations:L
    </div>}
    <label htmlFor="media">Photos and video <span className="muted">(optional)</span></label>
    <p id="media-help" className="field-help">Private attachments. Up to five files: photos up to 10 MB each and one video up to 50 MB. HEIC is accepted; browser previews may be unavailable.</p>
-   <input id="media" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,video/mp4,video/quicktime,video/webm" multiple aria-describedby="media-help" onChange={(event)=>{
+   <label htmlFor="media" className="upload-button">Add photos or video</label>
+   <span className="field-help" role="status">{media.length?`${media.length} file${media.length===1?'':'s'} selected`:'No files selected'}</span>
+   <input id="media" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,video/mp4,video/quicktime,video/webm" multiple aria-describedby="media-help" onChange={(event)=>{
     const added=Array.from(event.target.files??[]); const error=mediaError([...media.map((m)=>m.file),...added]);
     if(error){setUploadError(error);event.target.value='';return;}
     setUploadError('');setMedia((current)=>[...current,...added.map((file)=>({key:crypto.randomUUID(),file,url:URL.createObjectURL(file)}))]);event.target.value='';

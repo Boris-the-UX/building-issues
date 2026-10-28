@@ -42,6 +42,30 @@ let attachmentId;
 try{
  await login(page,emails[0]);
  sql(`insert into public.resident_memberships(user_id,building_id,unit_id) select p.id,u.building_id,u.id from public.profiles p cross join public.units u where p.email='${emails[0]}' and u.building_id='10000000-0000-4000-8000-000000000001' and u.unit_number='3C';`);
+ if(process.env.BROWSER_UI_ONLY==='1') {
+  await page.goto(origin+'/app/issues/new');
+  check(await page.getByText('Add photos or video',{exact:true}).isVisible(),'upload uses an English label');
+  check(!(await page.locator('body').innerText()).includes('Your home:'),'redundant home caption removed');
+  await page.goto(origin+'/app/statistics');
+  await page.getByRole('heading',{name:'Issue statistics'}).waitFor();
+  check(await page.locator('table').count()===0 && await page.locator('.bar-chart').count()===3,'statistics are three labeled charts');
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile statistics have no horizontal overflow');
+  await page.getByLabel('Issues opened since').fill('2999-01-01');
+  await page.getByRole('button',{name:'Apply filters'}).click();
+  await page.getByText('No issues match these filters.',{exact:false}).waitFor();
+  check(await page.locator('.bar-chart').count()===0,'date filter scopes all charts');
+  await page.getByRole('link',{name:'Reset filters'}).click();
+  await page.locator('.bar-chart').first().waitFor();
+  await page.setViewportSize({width:1280,height:900});
+  const baselines=await page.locator('.stats-grid dd').evaluateAll((items)=>items.map((item)=>item.getBoundingClientRect().bottom));
+  check(Math.max(...baselines)-Math.min(...baselines)<1,'summary values align');
+  await page.screenshot({path:'/tmp/building-issues-desktop-statistics.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:'/tmp/building-issues-mobile-statistics.png',fullPage:true});
+  await page.goto(origin+'/app/issues');
+  check(await page.locator('.issues-table').isVisible(),'overview includes a location column');
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'mobile issue cards have no horizontal overflow');
+ } else {
  await page.goto(origin+'/app/issues/new');
  check(await page.locator('select:visible').count()===0,'first step has one description field and no classification selects');
  await page.getByLabel('What happened and where?').fill(privateText);
@@ -113,8 +137,23 @@ try{
  await second.getByRole('button',{name:'Confirm and send'}).click();await second.waitForURL('**/app/reports/**',{timeout:20000}).catch(async(error)=>{await second.screenshot({path:'/tmp/building-issues-grouping-error.png',fullPage:true});console.error('Submission page diagnostic:',(await second.locator('body').innerText()).slice(0,2000));throw error;});
  check(await second.getByRole('link',{name:'neighbor-evidence.png',exact:true}).isVisible(),'staged attachment survives the semantic confirmation step');
  check(sql(`select count(r.id) from public.incidents i join public.reports r on r.incident_id=i.id where i.title='${sharedTitle}';`).trim()==='2','confirmation groups two residents’ reports into one incident');
- await second.goto(origin+'/app/statistics');check(await second.getByRole('heading',{name:'Complex statistics'}).isVisible(),'statistics page renders for either tower');
+ await second.goto(origin+'/app/statistics');check(await second.getByRole('heading',{name:'Issue statistics'}).isVisible(),'statistics page renders for either tower');
+ check(await second.locator('table').count()===0 && await second.locator('.bar-chart').count()===3,'statistics use labeled charts instead of tables');
+ check(await second.locator('.bar-label').first().innerText().then((text)=>/\d/.test(text)),'chart counts are visible without hovering');
+ check(await second.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'statistics fit a mobile screen');
+ await second.getByLabel('Category',{exact:true}).selectOption('noise');
+ await second.getByRole('button',{name:'Apply filters'}).click();
+ await second.getByText('No issues match these filters.',{exact:false}).waitFor();
+ check(await second.locator('.bar-chart').count()===0,'filters update charts and show an explicit empty state');
+ await second.getByRole('link',{name:'Reset filters'}).click();
+ await second.locator('.bar-chart').first().waitFor();
+ await second.setViewportSize({width:1280,height:900});
+ const bottoms=await second.locator('.stats-grid dd').evaluateAll((items)=>items.map((item)=>item.getBoundingClientRect().bottom));
+ check(Math.max(...bottoms)-Math.min(...bottoms)<1,'summary values align on the same baseline');
+ await second.screenshot({path:'/tmp/building-issues-desktop-statistics.png',fullPage:true});
+ await second.setViewportSize({width:390,height:844});
  await second.screenshot({path:'/tmp/building-issues-mobile-statistics.png',fullPage:true});
+ }
  console.log(`${checks} real mobile browser checks passed.`);
 }finally{
  await browser.close();

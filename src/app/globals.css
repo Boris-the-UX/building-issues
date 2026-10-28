@@ -55,3 +55,35 @@ th[scope="row"] { font-weight: 400; }
 .draft-review { margin: 1.2rem 0; padding: 1rem; border: 1px solid #86bda2; border-radius: .6rem; background: #f7fbf9; }
 .draft-review h2 { font-size: 1.2rem; margin-top: 0; }
 .draft-review summary { cursor: pointer; color: #116454; padding: .75rem 0; min-height: 2.75rem; text-decoration: underline; }
+header > form button { background: transparent; color: #536962; padding-inline: .4rem; }
+.upload-button { display: inline-flex; width: fit-content; padding: .7rem 1rem; border: 1px solid #116454; color: #116454; border-radius: .4rem; cursor: pointer; min-height: 2.75rem; }
+.upload-button:has(+ span + input:focus-visible) { outline: 3px solid #dc8f13; outline-offset: 3px; }
+.filters { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-items: end; gap: .8rem; padding: 1rem 0; border-bottom: 1px solid #d9e2df; }
+.filters label { font-size: .9rem; margin: 0; }
+.filters select,.filters input { display: block; margin: .4rem 0 0; font-size: 1rem; }
+.filters a { padding: .7rem 0; }
+.stats-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.stats-grid > div { display: flex; flex-direction: column; min-width: 0; }
+.stats-grid dt { min-height: 2.8em; }
+.stats-grid dd { margin-top: auto; padding-top: .5rem; }
+.chart { padding: 1rem 0; border-top: 1px solid #d9e2df; }
+.chart h2 { font-size: 1.15rem; }
+.bar-chart { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.bar-label { display: flex; gap: 1rem; justify-content: space-between; font-size: .95rem; margin-bottom: .4rem; }
+.bar-track { height: .7rem; border-radius: .25rem; background: #edf1ef; overflow: hidden; }
+.bar-fill { height: 100%; background: #116454; border-radius: .25rem; }
+.issues-table { font-size: .9rem; }
+.issues-table td { vertical-align: top; padding-block: 1rem; }
+.issues-table h2 { font-size: 1rem; margin: 0 0 .4rem; }
+.issue-place,.my-report { display: block; margin-top: .4rem; }
+@media(max-width:600px) {
+ .issues-table thead { display: none; }
+ .issues-table,.issues-table tbody,.issues-table tr,.issues-table td { display: block; }
+ .issues-table tr { padding: 1rem 0; border-top: 1px solid #d9e2df; }
+ .issues-table td { border: 0; padding: .3rem 0; }
+ .issues-table td:not(:first-child)::before { content: attr(data-label) ': '; color: #536962; }
+ .issue-place { display: inline; margin-left: .4rem; }
+ .stats-grid > div { padding: .7rem; }
+ .stats-grid dt { font-size: .8rem; }
+ .stats-grid dd { font-size: 1.7rem; }
+}

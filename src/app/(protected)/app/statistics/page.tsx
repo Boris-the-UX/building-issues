@@ -1,26 +1,38 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { categoryLabel,requestKindLabel,statusLabels } from '@/lib/complex/options';
+import { categories, categoryLabel, statusLabels } from '@/lib/complex/options';
 import type { Json } from '@/lib/supabase/database.types';
 function count(value:Json|undefined):number{return typeof value==='number'?value:0;}
-function rows(value:Json|undefined):{label:string;incidents:number;reports?:number}[]{
+function rows(value:Json|undefined):{label:string;incidents:number}[]{
  if(!Array.isArray(value))return [];
- return value.flatMap((row)=>row&&typeof row==='object'&&!Array.isArray(row)&&typeof row.label==='string'?[{label:row.label,incidents:count(row.incidents),reports:typeof row.reports==='number'?row.reports:undefined}]:[]);
+ return value.flatMap((row)=>row&&typeof row==='object'&&!Array.isArray(row)&&typeof row.label==='string'?[{label:row.label,incidents:count(row.incidents)}]:[]);
 }
-export default async function Statistics({searchParams}:{searchParams:Promise<{complex?:string}>}) {
- const {complex}=await searchParams;const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();if(!user)redirect('/login');
+export default async function Statistics({searchParams}:{searchParams:Promise<{complex?:string;place?:string;category?:string;status?:string;since?:string}>}) {
+ const params=await searchParams; const supabase=await createClient();const {data:{user}}=await supabase.auth.getUser();if(!user)redirect('/login');
  const {data:complexes,error:complexError}=await supabase.from('complexes').select('id,name').order('name');
- const selected=complexes?.find((c)=>c.id===complex)??complexes?.[0];
- const {data,error}=selected?await supabase.rpc('get_complex_statistics',{p_complex:selected.id}):{data:null,error:null};
+ const selected=complexes?.find((c)=>c.id===params.complex)??complexes?.[0];
+ const {data:buildings}=selected?await supabase.from('buildings').select('id,name').eq('complex_id',selected.id).order('name'):{data:[]};
+ const filters={place:params.place??'',category:params.category??'',status:params.status??'',since:/^\d{4}-\d{2}-\d{2}$/.test(params.since??'')?params.since!:''};
+ const {data,error}=selected?await supabase.rpc('get_filtered_complex_statistics',{p_complex:selected.id,p_filters:filters}):{data:null,error:null};
  const stats=data&&typeof data==='object'&&!Array.isArray(data)?data:{};
- const groups=[{title:'By problem category',data:rows(stats.by_category),label:categoryLabel},{title:'By request type',data:rows(stats.by_request_kind),label:requestKindLabel},{title:'By status',data:rows(stats.by_status),label:(v:string)=>statusLabels[v as keyof typeof statusLabels]??v},{title:'By place / facility',data:rows(stats.by_location),label:(v:string)=>v}];
- return <section className="card"><Link href="/app/issues">Back to issues</Link><h1>Complex statistics</h1>
-  {complexError||error?<p role="alert" className="error">Unable to load statistics.</p>:!selected?<p>No complex assigned yet.</p>:<><p>{selected.name} · shared issues and facilities</p>
-   {!!complexes?.length&&<nav aria-label="Complex selection">{complexes.map((c)=><Link key={c.id} href={`/app/statistics?complex=${c.id}`}>{c.name}</Link>)}</nav>}
-   <dl className="stats-grid">{[['Shared incidents','incidents'],['Open incidents','open_incidents'],['Individual reports','reports'],['Reporting households (known units)','reporting_households']].map(([label,key])=><div key={key}><dt>{label}</dt><dd>{count(stats[key])}</dd></div>)}</dl>
-   <p className="muted">Statistics count confirmed incident groups, not raw text similarity guesses. {count(stats.semantic_groups)} incidents have a semantic reference; legacy seed incidents are not automatically regrouped. Household counts exclude reports without a known unit ({count(stats.unknown_household_reports)}); following an issue does not imply that a household is affected.</p>
-   {groups.map((group)=><section key={group.title}><h2>{group.title}</h2>{group.data.length?<div className="table-scroll"><table><thead><tr><th scope="col">{group.title.replace('By ','')}</th><th scope="col">Incidents</th>{group.title==='By problem category'&&<th scope="col">Reports</th>}</tr></thead><tbody>{group.data.map((row)=><tr key={row.label}><th scope="row">{group.label(row.label)}</th><td>{row.incidents}</td>{group.title==='By problem category'&&<td>{row.reports??0}</td>}</tr>)}</tbody></table></div>:<p>No data yet.</p>}</section>)}
+ const total=count(stats.incidents);
+ const groups=[{title:'Issues by category',data:rows(stats.by_category),label:categoryLabel},{title:'Issues by status',data:rows(stats.by_status),label:(v:string)=>statusLabels[v as keyof typeof statusLabels]??v},{title:'Issues by location',data:rows(stats.by_location),label:(v:string)=>v}];
+ return <section className="card"><h1>Issue statistics</h1>
+  {!selected?<p>No complex assigned yet.</p>:<>
+   <form className="filters" method="get">
+    {complexes&&complexes.length>1?<label>Complex<select name="complex" defaultValue={selected.id}>{complexes.map((c)=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>:<input type="hidden" name="complex" value={selected.id}/>}
+    <label>Location<select name="place" defaultValue={filters.place}><option value="">All locations</option>{buildings?.map((b)=><option key={b.id} value={b.id}>{b.name}</option>)}<option value="shared">Shared grounds</option></select></label>
+    <label>Category<select name="category" defaultValue={filters.category}><option value="">All categories</option>{categories.map((c)=><option key={c.value} value={c.value}>{c.label}</option>)}</select></label>
+    <label>Status<select name="status" defaultValue={filters.status}><option value="">All statuses</option>{Object.entries(statusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>
+    <label>Issues opened since<input type="date" name="since" defaultValue={filters.since}/></label>
+    <button type="submit">Apply filters</button>{Object.values(filters).some(Boolean)&&<Link href={`/app/statistics?complex=${selected.id}`}>Reset filters</Link>}
+   </form>
+   {complexError||error?<p role="alert" className="error">Unable to load statistics. Please try again.</p>:<>
+   <dl className="stats-grid">{[['Total issues',total],['Open issues',count(stats.open_incidents)],['Resident reports',count(stats.reports)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+   <p className="field-help">An issue is one problem. Several residents can submit reports about the same issue. Charts count issues; report totals include all reports linked to the selected issues.</p>
+   {!total?<p role="status">No issues match these filters. Try another location or reset the filters.</p>:<div className="charts">{groups.map((group)=><section className="chart" key={group.title}><h2>{group.title}</h2><ul className="bar-chart" aria-label={group.title}>{group.data.map((row)=><li key={row.label}><div className="bar-label"><span>{group.label(row.label)}</span><strong>{row.incidents}</strong></div><div className="bar-track" aria-hidden="true"><div className="bar-fill" style={{width:`${row.incidents/Math.max(...group.data.map((r)=>r.incidents),1)*100}%`}}/></div></li>)}</ul></section>)}</div>}
+   </>}
   </>}
  </section>;
 }

@@ -902,6 +902,7 @@ export type Database = {
                     "title": string;
                 }[];
             };
+            "get_filtered_complex_statistics": { Args: { p_complex: string; p_filters: Json }; Returns: Json; };
             "get_complex_statistics": {
                 Args: {
                     "p_complex": string;

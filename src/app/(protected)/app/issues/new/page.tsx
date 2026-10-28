@@ -15,9 +15,9 @@ export default async function NewIssue() {
  ]);
  const complexId=membership?.buildings?.complex_id;
  const {data:locations,error:locationError}=complexId?await supabase.from('issue_locations').select('id,name,code,complex_id,building_id,buildings(name)').eq('complex_id',complexId).order('name'):{data:[],error:null};
- return <section className="card"><Link href="/app/issues">Back to issues</Link><h1>Report a complex issue</h1>
+ return <section className="card"><Link href="/app/issues">Back to issues</Link><h1>Report an issue</h1>
   {profileError||membershipError||locationError?<p role="alert" className="error">Unable to check your complex access. Please try again later.</p>
    :profile?.role!=='resident'||!membership||!locations?.length?<p>An active resident membership is required to submit a report. Contact your building administrator.</p>
-   :<><p>Report for <strong>{membership.buildings?.complexes?.name??'your residential complex'}</strong>. Your home: {membership.buildings?.name}.</p><ReportForm locations={locations} initialBuilding={membership.building_id} submissionId={randomUUID()}/></>}
+   :<ReportForm locations={locations} initialBuilding={membership.building_id} submissionId={randomUUID()}/>}
  </section>;
 }
