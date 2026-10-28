@@ -44,7 +44,7 @@ try{
  sql(`insert into public.resident_memberships(user_id,building_id,unit_id) select p.id,u.building_id,u.id from public.profiles p cross join public.units u where p.email='${emails[0]}' and u.building_id='10000000-0000-4000-8000-000000000001' and u.unit_number='3C';`);
  if(process.env.BROWSER_UI_ONLY==='1') {
   await page.goto(origin+'/app/issues/new');
-  check(await page.getByText('Add photos or video',{exact:true}).isVisible(),'upload uses an English label');
+  check(await page.locator('#location_id').count()===0&&await page.locator('#problem').count()===0,'dependent questions are initially hidden');
   check(!(await page.locator('body').innerText()).includes('Your home:'),'redundant home caption removed');
   await page.goto(origin+'/app/statistics');
   await page.getByRole('heading',{name:'Issue statistics'}).waitFor();
@@ -68,13 +68,22 @@ try{
  } else {
  await page.goto(origin+'/app/issues/new');
  check(await page.getByLabel('Where is the issue?').inputValue()==='','building choice is mandatory and never guessed from home');
+ check(await page.locator('#location_id').count()===0&&await page.locator('#problem').count()===0&&await page.locator('#current_status').count()===0,'only the building question appears initially');
  const buildingOptions=await page.locator('#scope').innerText();
  check(['Tower 1','Tower 2','Bloco 1','Bloco 2'].every((name)=>buildingOptions.includes(name)),'all four buildings are available');
  await page.getByLabel('Where is the issue?').selectOption('shared');
  const place=sql("select id from public.issue_locations where complex_id='10000000-0000-4000-8000-000000000001' and building_id is null and code='waste';").trim();
+ check(await page.locator('#problem').count()===0,'problem remains hidden until a place is chosen');
  await page.getByLabel('Which place or facility?').selectOption(place);
  await page.getByLabel('What is the problem?').selectOption('other');
  check(await page.getByLabel('Describe the problem',{exact:true}).isVisible(),'Other reveals a required problem description');
+ check(await page.locator('#current_status').count()===0,'Other needs a description before showing status');
+ await page.getByLabel('What is the problem?').selectOption('missing_waste');
+ await page.getByLabel('What is the current status?').selectOption('no_response');
+ await page.getByLabel('Where is the issue?').selectOption('10000000-0000-4000-8000-000000000003');
+ check(await page.locator('#location_id').inputValue()===''&&await page.locator('#problem').count()===0&&await page.locator('#current_status').count()===0,'changing building clears dependent answers and hides later questions');
+ await page.getByLabel('Where is the issue?').selectOption('shared');
+ await page.getByLabel('Which place or facility?').selectOption(place);
  await page.getByLabel('What is the problem?').selectOption('missing_waste');
  await page.getByLabel('What is the current status?').selectOption('no_response');
  await page.getByText('Additional details (optional)',{exact:true}).click();

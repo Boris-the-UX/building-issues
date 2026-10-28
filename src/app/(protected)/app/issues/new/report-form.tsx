@@ -15,6 +15,7 @@ export function ReportForm({locations,submissionId}:{locations:LocationOption[];
  const [location,setLocation]=useState('');
  const [problem,setProblem]=useState('');
  const [status,setStatus]=useState('');
+ const [statusDetail,setStatusDetail]=useState('');
  const [description,setDescription]=useState('');
  const [review,setReview]=useState(false);
  const [title,setTitle]=useState('');
@@ -38,6 +39,8 @@ export function ReportForm({locations,submissionId}:{locations:LocationOption[];
  const available=locations.filter((l)=>(l.building_id??'shared')===building);
  const towers=[...new Map(locations.filter((l)=>l.building_id).map((l)=>[l.building_id!,l.buildings?.name??'Building'])).entries()];
  const busy=pending||uploading;
+ const showStatus=!!(building&&location&&problem&&(problem!=='other'||other.trim()));
+ const ready=!!(showStatus&&status&&(status!=='other'||statusDetail.trim()));
  async function remove(item:SelectedMedia) {
   const reserved=uploaded.current.get(item.key);
   if(reserved) {
@@ -49,6 +52,7 @@ export function ReportForm({locations,submissionId}:{locations:LocationOption[];
   uploaded.current.delete(item.key);URL.revokeObjectURL(item.url);setMedia((current)=>current.filter((m)=>m.key!==item.key));
  }
  return <form action={action} className="report-form" aria-busy={busy} onSubmit={(event)=>{
+  if(!ready){event.preventDefault();return;}
   if(!review){event.preventDefault();prepareReview();return;}
   if(!media.length)return;
   event.preventDefault();
@@ -79,27 +83,34 @@ export function ReportForm({locations,submissionId}:{locations:LocationOption[];
   <fieldset disabled={busy}>
    <legend className="sr-only">New complex issue</legend>
    <label htmlFor="scope">Where is the issue?</label>
-   <select id="scope" value={building} required disabled={review} onChange={(event)=>{setBuilding(event.target.value);setLocation('');setProblem('');}}>
+   <select id="scope" value={building} required disabled={review} onChange={(event)=>{setBuilding(event.target.value);setLocation('');setProblem('');setStatus('');setStatusDetail('');setOther('');setDetail('');setReview(false);}}>
     <option value="">Choose a building or shared grounds</option>
     {towers.map(([id,name])=><option key={id} value={id}>{name}</option>)}
     <option value="shared">Shared facilities &amp; grounds</option>
    </select>
+   {building&&<>
    <label htmlFor="location_id">Which place or facility?</label>
-   <select id="location_id" value={location} required disabled={review} onChange={(event)=>{setLocation(event.target.value);setProblem('');}}>
+   <select id="location_id" value={location} required disabled={review} onChange={(event)=>{setLocation(event.target.value);setProblem('');setStatus('');setStatusDetail('');setOther('');setDetail('');setReview(false);}}>
     <option value="">Choose a place or facility</option>{available.map((l)=><option key={l.id} value={l.id}>{l.name}</option>)}
    </select>
+   </>}
    <input type="hidden" name="location_id" value={location}/>
+   {location&&<>
    <label htmlFor="problem">What is the problem?</label>
-   <select id="problem" value={problem} required disabled={review||!location} onChange={(event)=>setProblem(event.target.value)}>
+   <select id="problem" value={problem} required disabled={review||!location} onChange={(event)=>{setProblem(event.target.value);setStatus('');setStatusDetail('');setOther('');setReview(false);}}>
     <option value="">Choose a problem</option>{problemsFor(place?.code??'').map((p)=><option key={p.value} value={p.value}>{p.label}</option>)}
    </select>
+   </>}
    <input type="hidden" name="problem" value={problem}/>
-   {problem==='other'&&<><label htmlFor="category_detail">Describe the problem</label><input id="category_detail" name="category_detail" required maxLength={160} value={other} onChange={(event)=>{setOther(event.target.value);setReview(false);}}/></>}
+   {problem==='other'&&<><label htmlFor="category_detail">Describe the problem</label><input id="category_detail" name="category_detail" required maxLength={160} value={other} onChange={(event)=>{setOther(event.target.value);if(!event.target.value.trim()){setStatus('');setStatusDetail('');}setReview(false);}}/></>}
    {selectedProblem?.category==='gas'&&<p className="notice">If you smell gas, move to safety and contact emergency services. Do not wait for this app.</p>}
+   {showStatus&&<>
    <label htmlFor="current_status">What is the current status?</label>
    <p className="field-help">Choose based on what you know. This is your report, not confirmation from management.</p>
-   <select id="current_status" name="current_status" required value={status} onChange={(event)=>setStatus(event.target.value)}><option value="">Choose a status</option>{Object.entries(residentStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
-   {status==='other'&&<><label htmlFor="status_detail">Describe the status</label><input id="status_detail" name="status_detail" required maxLength={160}/></>}
+   <select id="current_status" name="current_status" required value={status} onChange={(event)=>{setStatus(event.target.value);setStatusDetail('');}}><option value="">Choose a status</option>{Object.entries(residentStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select>
+   {status==='other'&&<><label htmlFor="status_detail">Describe the status</label><input id="status_detail" name="status_detail" required maxLength={160} value={statusDetail} onChange={(event)=>setStatusDetail(event.target.value)}/></>}
+   </>}
+   <div hidden={!ready}>
    <details><summary>Additional details (optional)</summary>
     <label htmlFor="location">Floor, object number or landmark</label><input id="location" name="location" maxLength={240} value={detail} onChange={(event)=>{setDetail(event.target.value);setReview(false);}}/>
     <p className="field-help">This location detail is shared. Avoid names and apartment numbers.</p>
@@ -132,7 +143,8 @@ export function ReportForm({locations,submissionId}:{locations:LocationOption[];
    </fieldset>}
    {review&&<p className="muted">We check for similar incidents before saving. You confirm any grouping; private reports stay separate.</p>}
    <p role="status">{uploadStatus|| (pending?'Comparing similar issues and submitting…':'')}</p>
-   <button type="submit">{busy?'Please wait…':!review?'Continue':state.reviewRequired?'Confirm and send':'Send report'}</button>
+   <button type="submit" disabled={!ready}>{busy?'Please wait…':!review?'Continue':state.reviewRequired?'Confirm and send':'Send report'}</button>
+   </div>
   </fieldset>
  </form>;
 }
